@@ -33,6 +33,10 @@ pub mod transform_tmp;
 mod virtuals;
 pub mod white_point;
 
+pub use profile::Profile;
+pub use transform::Transform;
+pub use gamma::ToneCurve;
+
 #[cfg(test)]
 mod tests;
 
