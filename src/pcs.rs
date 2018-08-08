@@ -237,11 +237,8 @@ fn radians(deg: f64) -> f64 {
 
 /// Auxiliary: atan2 but operating in degrees and returning 0 if a == b == 0
 fn atan_to_deg(a: f64, b: f64) -> f64 {
-    let mut h = if a == 0. && b == 0. {
-        0.
-    } else {
-        a.atan2(b)
-    };
+    let mut h =
+        if a == 0. && b == 0. { 0. } else { a.atan2(b) };
 
     h *= 180. / f64::consts::PI;
 

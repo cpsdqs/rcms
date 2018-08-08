@@ -13,7 +13,7 @@ use pcs::{
 };
 use profile::Profile;
 use std::{fmt, mem, ops};
-use transform::Transform;
+use transform_tmp::Transform;
 use {CIELab, PixelType, CIEXYZ};
 
 // This macro return words stored as big endian
@@ -221,12 +221,7 @@ unsafe fn unroll_planar_bytes(
 }
 
 // Special cases, provided for performance
-unsafe fn unroll_4_bytes(
-    _: &Transform,
-    w_in: &mut [u16],
-    mut accum: Accum,
-    _: u32,
-) -> Accum {
+unsafe fn unroll_4_bytes(_: &Transform, w_in: &mut [u16], mut accum: Accum, _: u32) -> Accum {
     // C
     w_in[0] = from_8_to_16!(*accum);
     accum += 1;
@@ -288,12 +283,7 @@ unsafe fn unroll_4_bytes_swap_first(
 }
 
 /// KYMC
-unsafe fn unroll_4_bytes_swap(
-    _: &Transform,
-    w_in: &mut [u16],
-    mut accum: Accum,
-    _: u32,
-) -> Accum {
+unsafe fn unroll_4_bytes_swap(_: &Transform, w_in: &mut [u16], mut accum: Accum, _: u32) -> Accum {
     // K
     w_in[3] = from_8_to_16!(*accum);
     accum += 1;
@@ -332,12 +322,7 @@ unsafe fn unroll_4_bytes_swap_swap_first(
     accum
 }
 
-unsafe fn unroll_3_bytes(
-    _: &Transform,
-    w_in: &mut [u16],
-    mut accum: Accum,
-    _: u32,
-) -> Accum {
+unsafe fn unroll_3_bytes(_: &Transform, w_in: &mut [u16], mut accum: Accum, _: u32) -> Accum {
     // R
     w_in[0] = from_8_to_16!(*accum);
     accum += 1;
@@ -412,12 +397,7 @@ unsafe fn unroll_3_bytes_skip_1_swap_first(
 }
 
 /// BRG
-unsafe fn unroll_3_bytes_swap(
-    _: &Transform,
-    w_in: &mut [u16],
-    mut accum: Accum,
-    _: u32,
-) -> Accum {
+unsafe fn unroll_3_bytes_swap(_: &Transform, w_in: &mut [u16], mut accum: Accum, _: u32) -> Accum {
     // B
     w_in[2] = from_8_to_16!(*accum);
     accum += 1;
@@ -431,12 +411,7 @@ unsafe fn unroll_3_bytes_swap(
     accum
 }
 
-unsafe fn unroll_labv2_8(
-    _: &Transform,
-    w_in: &mut [u16],
-    mut accum: Accum,
-    _: u32,
-) -> Accum {
+unsafe fn unroll_labv2_8(_: &Transform, w_in: &mut [u16], mut accum: Accum, _: u32) -> Accum {
     // L
     w_in[0] = labv2_to_labv4(from_8_to_16!(*accum));
     accum += 1;
@@ -450,12 +425,7 @@ unsafe fn unroll_labv2_8(
     accum
 }
 
-unsafe fn unroll_a_labv2_8(
-    _: &Transform,
-    w_in: &mut [u16],
-    mut accum: Accum,
-    _: u32,
-) -> Accum {
+unsafe fn unroll_a_labv2_8(_: &Transform, w_in: &mut [u16], mut accum: Accum, _: u32) -> Accum {
     accum += 1; // A
                 // L
     w_in[0] = labv2_to_labv4(from_8_to_16!(*accum));
@@ -470,12 +440,7 @@ unsafe fn unroll_a_labv2_8(
     accum
 }
 
-unsafe fn unroll_labv2_16(
-    _: &Transform,
-    w_in: &mut [u16],
-    mut accum: Accum,
-    _: u32,
-) -> Accum {
+unsafe fn unroll_labv2_16(_: &Transform, w_in: &mut [u16], mut accum: Accum, _: u32) -> Accum {
     // L
     w_in[0] = labv2_to_labv4(accum.deref_as::<u16>());
     accum += 2;
@@ -490,12 +455,7 @@ unsafe fn unroll_labv2_16(
 }
 
 /// for duplex
-unsafe fn unroll_2_bytes(
-    _: &Transform,
-    w_in: &mut [u16],
-    mut accum: Accum,
-    _: u32,
-) -> Accum {
+unsafe fn unroll_2_bytes(_: &Transform, w_in: &mut [u16], mut accum: Accum, _: u32) -> Accum {
     // ch1
     w_in[0] = from_8_to_16!(*accum);
     accum += 1;
@@ -507,12 +467,7 @@ unsafe fn unroll_2_bytes(
 }
 
 /// Monochrome duplicates L into RGB for null-transforms
-unsafe fn unroll_1_byte(
-    _: &Transform,
-    w_in: &mut [u16],
-    mut accum: Accum,
-    _: u32,
-) -> Accum {
+unsafe fn unroll_1_byte(_: &Transform, w_in: &mut [u16], mut accum: Accum, _: u32) -> Accum {
     // L
     w_in[0] = from_8_to_16!(*accum);
     w_in[1] = w_in[0];
@@ -522,12 +477,7 @@ unsafe fn unroll_1_byte(
     accum
 }
 
-unsafe fn unroll_1_byte_skip_1(
-    _: &Transform,
-    w_in: &mut [u16],
-    mut accum: Accum,
-    _: u32,
-) -> Accum {
+unsafe fn unroll_1_byte_skip_1(_: &Transform, w_in: &mut [u16], mut accum: Accum, _: u32) -> Accum {
     // L
     w_in[0] = from_8_to_16!(*accum);
     w_in[1] = w_in[0];
@@ -538,12 +488,7 @@ unsafe fn unroll_1_byte_skip_1(
     accum
 }
 
-unsafe fn unroll_1_byte_skip_2(
-    _: &Transform,
-    w_in: &mut [u16],
-    mut accum: Accum,
-    _: u32,
-) -> Accum {
+unsafe fn unroll_1_byte_skip_2(_: &Transform, w_in: &mut [u16], mut accum: Accum, _: u32) -> Accum {
     // L
     w_in[0] = from_8_to_16!(*accum);
     w_in[1] = w_in[0];
@@ -569,12 +514,7 @@ unsafe fn unroll_1_byte_reversed(
     accum
 }
 
-unsafe fn unroll_any_words(
-    info: &Transform,
-    w_in: &mut [u16],
-    mut accum: Accum,
-    _: u32,
-) -> Accum {
+unsafe fn unroll_any_words(info: &Transform, w_in: &mut [u16], mut accum: Accum, _: u32) -> Accum {
     let n_chan = t_channels!(info.input_format);
     let swap_endian = t_endian16!(info.input_format) != 0;
     let do_swap = t_do_swap!(info.input_format) != 0;
@@ -649,12 +589,7 @@ unsafe fn unroll_planar_words(
     init + mem::size_of::<u16>()
 }
 
-unsafe fn unroll_4_words(
-    _: &Transform,
-    w_in: &mut [u16],
-    mut accum: Accum,
-    _: u32,
-) -> Accum {
+unsafe fn unroll_4_words(_: &Transform, w_in: &mut [u16], mut accum: Accum, _: u32) -> Accum {
     // C
     w_in[0] = accum.deref_as::<u16>();
     accum += 2;
@@ -716,12 +651,7 @@ unsafe fn unroll_4_words_swap_first(
 }
 
 /// KYMC
-unsafe fn unroll_4_words_swap(
-    _: &Transform,
-    w_in: &mut [u16],
-    mut accum: Accum,
-    _: u32,
-) -> Accum {
+unsafe fn unroll_4_words_swap(_: &Transform, w_in: &mut [u16], mut accum: Accum, _: u32) -> Accum {
     // K
     w_in[3] = accum.deref_as::<u16>();
     accum += 2;
@@ -760,12 +690,7 @@ unsafe fn unroll_4_words_swap_swap_first(
     accum
 }
 
-unsafe fn unroll_3_words(
-    _: &Transform,
-    w_in: &mut [u16],
-    mut accum: Accum,
-    _: u32,
-) -> Accum {
+unsafe fn unroll_3_words(_: &Transform, w_in: &mut [u16], mut accum: Accum, _: u32) -> Accum {
     // C R
     w_in[0] = accum.deref_as::<u16>();
     accum += 2;
@@ -779,12 +704,7 @@ unsafe fn unroll_3_words(
     accum
 }
 
-unsafe fn unroll_3_words_swap(
-    _: &Transform,
-    w_in: &mut [u16],
-    mut accum: Accum,
-    _: u32,
-) -> Accum {
+unsafe fn unroll_3_words_swap(_: &Transform, w_in: &mut [u16], mut accum: Accum, _: u32) -> Accum {
     // C R
     w_in[2] = accum.deref_as::<u16>();
     accum += 2;
@@ -838,12 +758,7 @@ unsafe fn unroll_3_words_skip_1_swap_first(
     accum
 }
 
-unsafe fn unroll_1_word(
-    _: &Transform,
-    w_in: &mut [u16],
-    mut accum: Accum,
-    _: u32,
-) -> Accum {
+unsafe fn unroll_1_word(_: &Transform, w_in: &mut [u16], mut accum: Accum, _: u32) -> Accum {
     // L
     w_in[0] = accum.deref_as::<u16>();
     w_in[1] = w_in[0];
@@ -868,12 +783,7 @@ unsafe fn unroll_1_word_reversed(
     accum
 }
 
-unsafe fn unroll_1_word_skip_3(
-    _: &Transform,
-    w_in: &mut [u16],
-    mut accum: Accum,
-    _: u32,
-) -> Accum {
+unsafe fn unroll_1_word_skip_3(_: &Transform, w_in: &mut [u16], mut accum: Accum, _: u32) -> Accum {
     w_in[0] = accum.deref_as::<u16>();
     w_in[1] = w_in[0];
     w_in[2] = w_in[0];
@@ -883,12 +793,7 @@ unsafe fn unroll_1_word_skip_3(
     accum
 }
 
-unsafe fn unroll_2_words(
-    _: &Transform,
-    w_in: &mut [u16],
-    mut accum: Accum,
-    _: u32,
-) -> Accum {
+unsafe fn unroll_2_words(_: &Transform, w_in: &mut [u16], mut accum: Accum, _: u32) -> Accum {
     // ch1
     w_in[0] = accum.deref_as::<u16>();
     accum += 2;
@@ -1012,18 +917,21 @@ unsafe fn unroll_xyz_float_to_16(
 fn is_ink_space(p_type: u32) -> bool {
     match t_colorspace!(p_type) {
         k if k == PixelType::CMY as u32
-        || k == PixelType::CMYK as u32
-        || k == PixelType::MCH5 as u32
-        || k == PixelType::MCH6 as u32
-        || k == PixelType::MCH7 as u32
-        || k == PixelType::MCH8 as u32
-        || k == PixelType::MCH9 as u32
-        || k == PixelType::MCH10 as u32
-        || k == PixelType::MCH11 as u32
-        || k == PixelType::MCH12 as u32
-        || k == PixelType::MCH13 as u32
-        || k == PixelType::MCH14 as u32
-        || k == PixelType::MCH15 as u32 => true,
+            || k == PixelType::CMYK as u32
+            || k == PixelType::MCH5 as u32
+            || k == PixelType::MCH6 as u32
+            || k == PixelType::MCH7 as u32
+            || k == PixelType::MCH8 as u32
+            || k == PixelType::MCH9 as u32
+            || k == PixelType::MCH10 as u32
+            || k == PixelType::MCH11 as u32
+            || k == PixelType::MCH12 as u32
+            || k == PixelType::MCH13 as u32
+            || k == PixelType::MCH14 as u32
+            || k == PixelType::MCH15 as u32 =>
+        {
+            true
+        }
         _ => false,
     }
 }
@@ -1171,12 +1079,7 @@ unsafe fn unroll_float_to_16(
 }
 
 /// For 1 channel, we need to duplicate data (it comes in 0..1.0 range)
-unsafe fn unroll_double_1_chan(
-    _: &Transform,
-    w_in: &mut [u16],
-    accum: Accum,
-    _: u32,
-) -> Accum {
+unsafe fn unroll_double_1_chan(_: &Transform, w_in: &mut [u16], accum: Accum, _: u32) -> Accum {
     let inks = accum.deref_as::<f64>();
 
     w_in[0] = quick_saturate_word(inks * 65535.);
@@ -1219,7 +1122,9 @@ unsafe fn unroll_floats_to_float(
         let index = if do_swap { n_chan - i - 1 } else { i };
 
         if planar {
-            v = accum.offset::<f32>(((i + start) * stride) as i32).deref_as::<f32>();
+            v = accum
+                .offset::<f32>(((i + start) * stride) as i32)
+                .deref_as::<f32>();
         } else {
             v = accum.offset::<f32>((i + start) as i32).deref_as::<f32>();
         }
@@ -1319,10 +1224,8 @@ unsafe fn unroll_lab_double_to_float(
         // from 0..100 to 0..1
         w_in[0] = (accum.deref_as::<f64>() / 100.) as f32;
         // from -128..+127 to 0..1
-        w_in[1] =
-            (accum.offset::<f64>(stride as i32).deref_as::<f64>() + 128. / 255.) as f32;
-        w_in[2] = (accum.offset::<f64>(stride as i32 * 2).deref_as::<f64>()
-            + 128. / 255.) as f32;
+        w_in[1] = (accum.offset::<f64>(stride as i32).deref_as::<f64>() + 128. / 255.) as f32;
+        w_in[2] = (accum.offset::<f64>(stride as i32 * 2).deref_as::<f64>() + 128. / 255.) as f32;
 
         accum + mem::size_of::<f64>()
     } else {
@@ -1375,10 +1278,10 @@ unsafe fn unroll_xyz_double_to_float(
         let stride = stride / pixel_size(info.input_format);
 
         w_in[0] = (accum.deref_as::<f64>() / MAX_ENCODEABLE_XYZ) as f32;
-        w_in[1] = (accum.offset::<f64>(stride as i32).deref_as::<f64>()
-            / MAX_ENCODEABLE_XYZ) as f32;
-        w_in[2] = (accum.offset::<f64>(stride as i32 * 2).deref_as::<f64>()
-            / MAX_ENCODEABLE_XYZ) as f32;
+        w_in[1] =
+            (accum.offset::<f64>(stride as i32).deref_as::<f64>() / MAX_ENCODEABLE_XYZ) as f32;
+        w_in[2] =
+            (accum.offset::<f64>(stride as i32 * 2).deref_as::<f64>() / MAX_ENCODEABLE_XYZ) as f32;
 
         accum + mem::size_of::<f64>()
     } else {
@@ -1400,10 +1303,9 @@ unsafe fn unroll_xyz_float_to_float(
         let stride = stride / pixel_size(info.input_format);
 
         w_in[0] = accum.deref_as::<f32>() / MAX_ENCODEABLE_XYZ as f32;
-        w_in[1] = accum.offset::<f32>(stride as i32).deref_as::<f32>()
-            / MAX_ENCODEABLE_XYZ as f32;
-        w_in[2] = accum.offset::<f32>(stride as i32 * 2).deref_as::<f32>()
-            / MAX_ENCODEABLE_XYZ as f32;
+        w_in[1] = accum.offset::<f32>(stride as i32).deref_as::<f32>() / MAX_ENCODEABLE_XYZ as f32;
+        w_in[2] =
+            accum.offset::<f32>(stride as i32 * 2).deref_as::<f32>() / MAX_ENCODEABLE_XYZ as f32;
 
         accum + mem::size_of::<f32>()
     } else {
@@ -1416,12 +1318,7 @@ unsafe fn unroll_xyz_float_to_float(
 }
 
 // Generic chunky for byte
-unsafe fn pack_any_bytes(
-    info: &Transform,
-    w_out: &mut [u16],
-    mut output: Accum,
-    _: u32,
-) -> Accum {
+unsafe fn pack_any_bytes(info: &Transform, w_out: &mut [u16], mut output: Accum, _: u32) -> Accum {
     let n_chan = t_channels!(info.output_format);
     let do_swap = t_do_swap!(info.output_format) != 0;
     let reverse = t_flavor!(info.output_format) != 0;
@@ -1465,12 +1362,7 @@ unsafe fn pack_any_bytes(
     output
 }
 
-unsafe fn pack_any_words(
-    info: &Transform,
-    w_out: &mut [u16],
-    mut output: Accum,
-    _: u32,
-) -> Accum {
+unsafe fn pack_any_words(info: &Transform, w_out: &mut [u16], mut output: Accum, _: u32) -> Accum {
     let n_chan = t_channels!(info.output_format);
     let swap_endian = t_endian16!(info.output_format) != 0;
     let do_swap = t_do_swap!(info.output_format) != 0;
@@ -1586,12 +1478,7 @@ unsafe fn pack_planar_words(
 }
 
 /// CMYKcm (unrolled for speed)
-unsafe fn pack_6_bytes(
-    _: &Transform,
-    w_out: &mut [u16],
-    mut output: Accum,
-    _: u32,
-) -> Accum {
+unsafe fn pack_6_bytes(_: &Transform, w_out: &mut [u16], mut output: Accum, _: u32) -> Accum {
     *output = from_16_to_8!(w_out[0]);
     output += 1;
     *output = from_16_to_8!(w_out[1]);
@@ -1609,12 +1496,7 @@ unsafe fn pack_6_bytes(
 }
 
 /// KCMYcm
-unsafe fn pack_6_bytes_swap(
-    _: &Transform,
-    w_out: &mut [u16],
-    mut output: Accum,
-    _: u32,
-) -> Accum {
+unsafe fn pack_6_bytes_swap(_: &Transform, w_out: &mut [u16], mut output: Accum, _: u32) -> Accum {
     *output = from_16_to_8!(w_out[5]);
     output += 1;
     *output = from_16_to_8!(w_out[4]);
@@ -1632,12 +1514,7 @@ unsafe fn pack_6_bytes_swap(
 }
 
 /// CMYKcm
-unsafe fn pack_6_words(
-    _: &Transform,
-    w_out: &mut [u16],
-    mut output: Accum,
-    _: u32,
-) -> Accum {
+unsafe fn pack_6_words(_: &Transform, w_out: &mut [u16], mut output: Accum, _: u32) -> Accum {
     *output.deref_mut() = w_out[0];
     output += 2;
     *output.deref_mut() = w_out[1];
@@ -1655,12 +1532,7 @@ unsafe fn pack_6_words(
 }
 
 /// KCMYcm
-unsafe fn pack_6_words_swap(
-    _: &Transform,
-    w_out: &mut [u16],
-    mut output: Accum,
-    _: u32,
-) -> Accum {
+unsafe fn pack_6_words_swap(_: &Transform, w_out: &mut [u16], mut output: Accum, _: u32) -> Accum {
     *output.deref_mut() = w_out[5];
     output += 2;
     *output.deref_mut() = w_out[4];
@@ -1677,12 +1549,7 @@ unsafe fn pack_6_words_swap(
     output
 }
 
-unsafe fn pack_4_bytes(
-    _: &Transform,
-    w_out: &mut [u16],
-    mut output: Accum,
-    _: u32,
-) -> Accum {
+unsafe fn pack_4_bytes(_: &Transform, w_out: &mut [u16], mut output: Accum, _: u32) -> Accum {
     *output = from_16_to_8!(w_out[0]);
     output += 1;
     *output = from_16_to_8!(w_out[1]);
@@ -1733,12 +1600,7 @@ unsafe fn pack_4_bytes_swap_first(
 }
 
 /// ABGR
-unsafe fn pack_4_bytes_swap(
-    _: &Transform,
-    w_out: &mut [u16],
-    mut output: Accum,
-    _: u32,
-) -> Accum {
+unsafe fn pack_4_bytes_swap(_: &Transform, w_out: &mut [u16], mut output: Accum, _: u32) -> Accum {
     *output = from_16_to_8!(w_out[3]);
     output += 1;
     *output = from_16_to_8!(w_out[2]);
@@ -1769,12 +1631,7 @@ unsafe fn pack_4_bytes_swap_swap_first(
     output
 }
 
-unsafe fn pack_4_words(
-    _: &Transform,
-    w_out: &mut [u16],
-    mut output: Accum,
-    _: u32,
-) -> Accum {
+unsafe fn pack_4_words(_: &Transform, w_out: &mut [u16], mut output: Accum, _: u32) -> Accum {
     *output.deref_mut() = w_out[0];
     output += 2;
     *output.deref_mut() = w_out[1];
@@ -1806,12 +1663,7 @@ unsafe fn pack_4_words_reverse(
 }
 
 /// ABGR
-unsafe fn pack_4_words_swap(
-    _: &Transform,
-    w_out: &mut [u16],
-    mut output: Accum,
-    _: u32,
-) -> Accum {
+unsafe fn pack_4_words_swap(_: &Transform, w_out: &mut [u16], mut output: Accum, _: u32) -> Accum {
     *output.deref_mut() = w_out[3];
     output += 2;
     *output.deref_mut() = w_out[2];
@@ -1843,12 +1695,7 @@ unsafe fn pack_4_words_big_endian(
     output
 }
 
-unsafe fn pack_labv2_8(
-    _: &Transform,
-    w_out: &mut [u16],
-    mut output: Accum,
-    _: u32,
-) -> Accum {
+unsafe fn pack_labv2_8(_: &Transform, w_out: &mut [u16], mut output: Accum, _: u32) -> Accum {
     *output = from_16_to_8!(labv4_to_labv2(w_out[0]));
     output += 1;
     *output = from_16_to_8!(labv4_to_labv2(w_out[1]));
@@ -1859,12 +1706,7 @@ unsafe fn pack_labv2_8(
     output
 }
 
-unsafe fn pack_a_labv2_8(
-    _: &Transform,
-    w_out: &mut [u16],
-    mut output: Accum,
-    _: u32,
-) -> Accum {
+unsafe fn pack_a_labv2_8(_: &Transform, w_out: &mut [u16], mut output: Accum, _: u32) -> Accum {
     output += 1;
     *output = from_16_to_8!(labv4_to_labv2(w_out[0]));
     output += 1;
@@ -1876,12 +1718,7 @@ unsafe fn pack_a_labv2_8(
     output
 }
 
-unsafe fn pack_labv2_16(
-    _: &Transform,
-    w_out: &mut [u16],
-    mut output: Accum,
-    _: u32,
-) -> Accum {
+unsafe fn pack_labv2_16(_: &Transform, w_out: &mut [u16], mut output: Accum, _: u32) -> Accum {
     *output.deref_mut() = labv4_to_labv2(w_out[0]);
     output += 2;
     *output.deref_mut() = labv4_to_labv2(w_out[1]);
@@ -1892,12 +1729,7 @@ unsafe fn pack_labv2_16(
     output
 }
 
-unsafe fn pack_3_bytes(
-    _: &Transform,
-    w_out: &mut [u16],
-    mut output: Accum,
-    _: u32,
-) -> Accum {
+unsafe fn pack_3_bytes(_: &Transform, w_out: &mut [u16], mut output: Accum, _: u32) -> Accum {
     *output = from_16_to_8!(w_out[0]);
     output += 1;
     *output = from_16_to_8!(w_out[1]);
@@ -1925,12 +1757,7 @@ unsafe fn pack_3_bytes_optimized(
     output
 }
 
-unsafe fn pack_3_bytes_swap(
-    _: &Transform,
-    w_out: &mut [u16],
-    mut output: Accum,
-    _: u32,
-) -> Accum {
+unsafe fn pack_3_bytes_swap(_: &Transform, w_out: &mut [u16], mut output: Accum, _: u32) -> Accum {
     *output = from_16_to_8!(w_out[2]);
     output += 1;
     *output = from_16_to_8!(w_out[1]);
@@ -1958,12 +1785,7 @@ unsafe fn pack_3_bytes_swap_optimized(
     output
 }
 
-unsafe fn pack_3_words(
-    _: &Transform,
-    w_out: &mut [u16],
-    mut output: Accum,
-    _: u32,
-) -> Accum {
+unsafe fn pack_3_words(_: &Transform, w_out: &mut [u16], mut output: Accum, _: u32) -> Accum {
     *output.deref_mut() = w_out[0];
     output += 2;
     *output.deref_mut() = w_out[1];
@@ -1974,12 +1796,7 @@ unsafe fn pack_3_words(
     output
 }
 
-unsafe fn pack_3_words_swap(
-    _: &Transform,
-    w_out: &mut [u16],
-    mut output: Accum,
-    _: u32,
-) -> Accum {
+unsafe fn pack_3_words_swap(_: &Transform, w_out: &mut [u16], mut output: Accum, _: u32) -> Accum {
     *output.deref_mut() = w_out[2];
     output += 2;
     *output.deref_mut() = w_out[1];
@@ -2214,12 +2031,7 @@ unsafe fn pack_3_words_and_skip_1_swap_swap_first(
     output
 }
 
-unsafe fn pack_1_byte(
-    _: &Transform,
-    w_out: &mut [u16],
-    mut output: Accum,
-    _: u32,
-) -> Accum {
+unsafe fn pack_1_byte(_: &Transform, w_out: &mut [u16], mut output: Accum, _: u32) -> Accum {
     *output = from_16_to_8!(w_out[0]);
     output += 1;
 
@@ -2238,12 +2050,7 @@ unsafe fn pack_1_byte_reversed(
     output
 }
 
-unsafe fn pack_1_byte_skip_1(
-    _: &Transform,
-    w_out: &mut [u16],
-    mut output: Accum,
-    _: u32,
-) -> Accum {
+unsafe fn pack_1_byte_skip_1(_: &Transform, w_out: &mut [u16], mut output: Accum, _: u32) -> Accum {
     *output = from_16_to_8!(w_out[0]);
     output += 2;
 
@@ -2263,12 +2070,7 @@ unsafe fn pack_1_byte_skip_1_swap_first(
     output
 }
 
-unsafe fn pack_1_word(
-    _: &Transform,
-    w_out: &mut [u16],
-    mut output: Accum,
-    _: u32,
-) -> Accum {
+unsafe fn pack_1_word(_: &Transform, w_out: &mut [u16], mut output: Accum, _: u32) -> Accum {
     *output.deref_mut() = w_out[0];
     output += 2;
 
@@ -2299,12 +2101,7 @@ unsafe fn pack_1_word_big_endian(
     output
 }
 
-unsafe fn pack_1_word_skip_1(
-    _: &Transform,
-    w_out: &mut [u16],
-    mut output: Accum,
-    _: u32,
-) -> Accum {
+unsafe fn pack_1_word_skip_1(_: &Transform, w_out: &mut [u16], mut output: Accum, _: u32) -> Accum {
     *output.deref_mut() = w_out[0];
     output += 4;
 
@@ -3765,7 +3562,7 @@ pub fn formatter_for_color_space_of_profile(
 ) -> u32 {
     let color_space = profile.color_space;
     let cs_bits = lcms_color_space(color_space) as u32;
-    let n_output_chans = color_space.channels();
+    let n_output_chans = color_space.channels() as u32;
     let float = if l_is_float { 1 } else { 0 };
 
     // create a fake formatter for result
@@ -3776,7 +3573,7 @@ pub fn formatter_for_color_space_of_profile(
 pub fn formatter_for_pcs_of_profile(profile: &Profile, bytes: u32, l_is_float: bool) -> u32 {
     let color_space = profile.pcs;
     let cs_bits = lcms_color_space(color_space) as u32;
-    let n_output_chans = color_space.channels();
+    let n_output_chans = color_space.channels() as u32;
     let float = if l_is_float { 1 } else { 0 };
 
     // create a fake formatter for result

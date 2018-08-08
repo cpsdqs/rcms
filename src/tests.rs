@@ -1,6 +1,6 @@
-use pcs::*;
 use super::*;
 use gamma::ToneCurve;
+use pixel_format::RGB;
 use profile::Profile;
 use transform::Transform;
 
@@ -20,24 +20,22 @@ macro_rules! assert_approx_eq_slices {
         };
 
         if !is_eq {
-            panic!("approx assertion failed: left == right\nleft: {:?}\nright:{:?}", $lhs, $rhs);
+            panic!(
+                "approx assertion failed: left == right\nleft: {:?}\nright:{:?}",
+                $lhs, $rhs
+            );
         }
-    }}
+    }};
 }
 
 #[test]
 fn aces_cg_srgb_round_trip() {
     let aces_cg = Profile::new_rgb(
-        xyz_to_xy_y(CIEXYZ {
-            x: 0.95265,
-            y: 1.00000,
-            z: 1.00883,
-        }),
-        /*CIExyY {
+        CIExyY {
             x: 0.32168,
             y: 0.33767,
             Y: 1.,
-        },*/
+        },
         CIExyYTriple {
             red: CIExyY {
                 x: 0.713,
@@ -63,22 +61,24 @@ fn aces_cg_srgb_round_trip() {
     ).unwrap();
 
     let srgb = Profile::new_srgb().unwrap();
-    println!("{:?}\n{:?}", aces_cg, srgb);
 
-    let transform = Transform::new(&aces_cg, aces_cg.formatter_for_cs(4, true), &srgb, srgb.formatter_for_cs(4, true), Intent::Perceptual).unwrap();
-    let transform_rev = Transform::new(&srgb, srgb.formatter_for_cs(4, true), &aces_cg, aces_cg.formatter_for_cs(4, true), Intent::Perceptual).unwrap();
+    let aces_to_srgb: Transform<RGB<f32>, RGB<f32>> =
+        Transform::new(&aces_cg, &srgb, Intent::Perceptual).unwrap();
+    let srgb_to_aces: Transform<RGB<f32>, RGB<f32>> =
+        Transform::new(&srgb, &aces_cg, Intent::Perceptual).unwrap();
 
-    println!("\n{:?}\n", transform);
+    let aces_px: [f32; 3] = [0.5, 0.1, 0.7];
+    let mut srgb_px: [f32; 3] = [-1.; 3];
+    let mut aces_px_2: [f32; 3] = [-1.; 3];
 
-    let a: [f32; 3] = [0.5, 0.1, 0.7];
-    let mut b: [f32; 3] = [-1.; 3];
-    let mut c: [f32; 3] = [-1.; 3];
+    aces_to_srgb.convert(&aces_px, &mut srgb_px);
+    srgb_to_aces.convert(&srgb_px, &mut aces_px_2);
 
-    unsafe { transform.convert_any(&a as *const _ as *const (), &mut b as *mut _ as *mut (), 1) };
-    unsafe { transform_rev.convert_any(&b as *const _ as *const (), &mut c as *mut _ as *mut (), 1) };
+    println!(
+        "ACEScg {:?} -> sRGB {:?} -> ACEScg {:?}",
+        aces_px, srgb_px, aces_px_2
+    );
 
-    println!("ACEScg {:?} -> sRGB {:?} -> ACEScg {:?}", a, b, c);
-
-    assert_approx_eq_slices!(&b, &[0.87143475, 0.22537376, 0.89735174], 0.000001);
-    assert_approx_eq_slices!(a, c, 0.000001);
+    assert_approx_eq_slices!(srgb_px, [0.87143475, 0.22537376, 0.89735174], 0.000001);
+    assert_approx_eq_slices!(aces_px, aces_px_2, 0.000001);
 }

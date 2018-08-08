@@ -1,9 +1,9 @@
 use alpha::MAX_CHANNELS;
 use gamma::ToneCurve;
 use internal::quick_saturate_word;
+use named::NamedColorList;
 use pcs::{lab_to_xyz, xyz_to_lab, MAX_ENCODEABLE_XYZ};
 use std::fmt;
-use transform::NamedColorList;
 use {CIELab, CIEXYZ};
 
 type StageEvalFn = fn(&[f32], &mut [f32], &Stage);
@@ -69,8 +69,8 @@ pub struct Stage {
     ty: StageType,
     implements: StageType,
 
-    input_channels: u32,
-    output_channels: u32,
+    input_channels: usize,
+    output_channels: usize,
 
     eval_fn: StageEvalFn,
 
@@ -80,8 +80,8 @@ pub struct Stage {
 impl Stage {
     pub(crate) fn alloc(
         ty: StageType,
-        input_channels: u32,
-        output_channels: u32,
+        input_channels: usize,
+        output_channels: usize,
         eval_fn: StageEvalFn,
         data: StageData,
     ) -> Stage {
@@ -95,8 +95,19 @@ impl Stage {
         }
     }
 
-    // Curves == NULL forces identity curves
-    pub(crate) fn new_tone_curves(channels: u32, curves: Option<&[ToneCurve]>) -> Stage {
+    /// Creates a new tone curve stage. The number of tone curves must match the channel count.
+    pub fn new_tone_curves(channels: usize, curves: &[ToneCurve]) -> Stage {
+        Self::new_tone_curves_impl(channels, Some(curves))
+    }
+
+    /// Creates a bunch of identity curves.
+    pub fn new_identity_curves(channels: usize) -> Stage {
+        let mut stage = Stage::new_tone_curves_impl(channels, None);
+        stage.implements = StageType::Identity;
+        stage
+    }
+
+    fn new_tone_curves_impl(channels: usize, curves: Option<&[ToneCurve]>) -> Stage {
         let curves = if let Some(curves) = curves {
             curves.to_vec()
         } else {
@@ -107,6 +118,8 @@ impl Stage {
             curves
         };
 
+        assert_eq!(curves.len(), channels);
+
         Stage::alloc(
             StageType::CurveSet,
             channels,
@@ -116,12 +129,8 @@ impl Stage {
         )
     }
 
-    pub(crate) fn new_matrix(
-        rows: u32,
-        cols: u32,
-        matrix: &[f64],
-        offset: Option<&[f64]>,
-    ) -> Stage {
+    /// Creates a new matrix stage. Rows and columns are output and input channels, respectively.
+    pub fn new_matrix(rows: usize, cols: usize, matrix: &[f64], offset: Option<&[f64]>) -> Stage {
         Self::alloc(
             StageType::Matrix,
             cols,
@@ -134,7 +143,8 @@ impl Stage {
         )
     }
 
-    pub(crate) fn new_labv2_to_v4() -> Stage {
+    /// Creates a new stage that converts Lab V2 to Lab V4.
+    pub fn new_labv2_to_v4() -> Stage {
         const V2_TO_V4: [f64; 9] = [
             65535. / 65280.,
             0.,
@@ -153,17 +163,18 @@ impl Stage {
         stage
     }
 
-    pub(crate) fn new_labv4_to_v2() -> Stage {
+    /// Creates a new stage that converts Lab V4 to Lab V2.
+    pub fn new_labv4_to_v2() -> Stage {
         const V4_TO_V2: [f64; 9] = [
             65280. / 65535.,
             0.,
             0.,
             0.,
-            65280. /65535.,
+            65280. / 65535.,
             0.,
             0.,
             0.,
-            65280. /65535.,
+            65280. / 65535.,
         ];
 
         let mut stage = Self::new_matrix(3, 3, &V4_TO_V2, None);
@@ -172,7 +183,8 @@ impl Stage {
         stage
     }
 
-    pub(crate) fn new_xyz_to_lab() -> Stage {
+    /// Creates a new stage that converts XYZ to Lab.
+    pub fn new_xyz_to_lab() -> Stage {
         Self::alloc(
             StageType::XYZ2Lab,
             3,
@@ -182,7 +194,8 @@ impl Stage {
         )
     }
 
-    pub(crate) fn new_lab_to_xyz() -> Stage {
+    /// Creates a new stage that converts Lab to XYZ.
+    pub fn new_lab_to_xyz() -> Stage {
         Self::alloc(
             StageType::Lab2XYZ,
             3,
@@ -192,7 +205,8 @@ impl Stage {
         )
     }
 
-    pub(crate) fn new_clip_negatives(channels: u32) -> Stage {
+    /// Creates a new stage that clamps all negative values to zero.
+    pub fn new_clip_negatives(channels: usize) -> Stage {
         Self::alloc(
             StageType::ClipNegatives,
             channels,
@@ -202,11 +216,16 @@ impl Stage {
         )
     }
 
-    /// From Lab to float. Note that the MPE gives numbers in normal Lab range and we need the
-    /// 0..1.0 range for the formatters.
+    /// Converts from Lab to float.
+    ///
+    /// Note that the MPE gives numbers in the normal Lab range and we need the 0..1.0 range for
+    /// the formatters.
+    ///
+    /// ```text
     /// L*:   0...100 => 0...1.0  (L* / 100)
     /// ab*: -128..+127 to 0..1   ((ab* + 128) / 255)
-    pub(crate) fn new_normalize_from_lab_float() -> Stage {
+    /// ```
+    pub fn new_normalize_from_lab_float() -> Stage {
         const A1: [f64; 9] = [1. / 100., 0., 0., 0., 1. / 255., 0., 0., 0., 1. / 255.];
 
         const O1: [f64; 3] = [0., 128. / 255., 128. / 255.];
@@ -216,8 +235,8 @@ impl Stage {
         stage
     }
 
-    /// From XYZ to floating point PCS
-    pub(crate) fn new_normalize_from_xyz_float() -> Stage {
+    /// Converts from XYZ to floating point PCS.
+    pub fn new_normalize_from_xyz_float() -> Stage {
         const A1: [f64; 9] = [
             32768. / 65535.,
             0.,
@@ -235,7 +254,7 @@ impl Stage {
         stage
     }
 
-    pub(crate) fn new_normalize_to_lab_float() -> Stage {
+    pub fn new_normalize_to_lab_float() -> Stage {
         const A1: [f64; 9] = [100., 0., 0., 0., 255., 0., 0., 0., 255.];
 
         const O1: [f64; 3] = [0., -128., -128.];
@@ -245,7 +264,7 @@ impl Stage {
         stage
     }
 
-    pub(crate) fn new_normalize_to_xyz_float() -> Stage {
+    pub fn new_normalize_to_xyz_float() -> Stage {
         const A1: [f64; 9] = [
             65535. / 32768.,
             0.,
@@ -263,15 +282,15 @@ impl Stage {
         stage
     }
 
-    pub(crate) fn new_identity(channels: u32) -> Stage {
-        Stage::alloc(StageType::Identity, channels, channels, evaluate_identity, StageData::None)
-    }
-
-    /// Creates a bunch of identity curves.
-    pub(crate) fn new_identity_curves(channels: u32) -> Stage {
-        let mut stage = Stage::new_tone_curves(channels, None);
-        stage.implements = StageType::Identity;
-        stage
+    /// Creates a new identity stage, i.e. it simply copies input to output.
+    pub fn new_identity(channels: usize) -> Stage {
+        Stage::alloc(
+            StageType::Identity,
+            channels,
+            channels,
+            evaluate_identity,
+            StageData::None,
+        )
     }
 }
 
@@ -285,7 +304,8 @@ impl fmt::Debug for Stage {
     }
 }
 
-type OPTeval16Fn = fn(&[u16], &mut [u16], &Pipeline);
+/// Pipeline evaluator (in words)
+type PipelineEval16Fn = fn(&[u16], &mut [u16], &Pipeline);
 
 /// Pipeline evaluator (in floating point)
 type PipelineEvalFloatFn = fn(&[f32], &mut [f32], &Pipeline);
@@ -293,20 +313,18 @@ type PipelineEvalFloatFn = fn(&[f32], &mut [f32], &Pipeline);
 #[derive(Clone)]
 pub struct Pipeline {
     elements: Vec<Stage>,
-    pub input_channels: u32,
-    pub output_channels: u32,
+    input_channels: usize,
+    output_channels: usize,
 
-    data: (),
-    eval_16_fn: OPTeval16Fn,
+    eval_16_fn: PipelineEval16Fn,
     eval_float_fn: PipelineEvalFloatFn,
-    save_as_8_bits: bool,
 }
 
 impl Pipeline {
-    pub fn alloc(input_channels: u32, output_channels: u32) -> Pipeline {
-        // A value of zero in channels is allowed as placeholder
-        if input_channels >= MAX_CHANNELS as u32 || output_channels >= MAX_CHANNELS as u32 {
-            panic!("Pipeline: too many channels");
+    /// Creates a new empty pipeline. Must have fewer than MAX_CHANNELS channels.
+    pub fn new(input_channels: usize, output_channels: usize) -> Pipeline {
+        if input_channels >= MAX_CHANNELS || output_channels >= MAX_CHANNELS {
+            panic!("Pipeline has too many channels");
         }
 
         let mut lut = Pipeline {
@@ -315,16 +333,22 @@ impl Pipeline {
             output_channels,
             eval_16_fn: lut_eval_16,
             eval_float_fn: lut_eval_float,
-            data: (),
-            save_as_8_bits: false,
         };
 
-        lut.bless();
+        lut.update_channels();
 
         lut
     }
 
-    fn bless(&mut self) {
+    pub fn input_channels(&self) -> usize {
+        self.input_channels
+    }
+
+    pub fn output_channels(&self) -> usize {
+        self.output_channels
+    }
+
+    fn update_channels(&mut self) {
         // We can set the input/output channels only if we have elements.
         if !self.elements.is_empty() {
             let first = self.elements.first().unwrap();
@@ -348,12 +372,12 @@ impl Pipeline {
 
     pub(crate) fn prepend_stage(&mut self, stage: Stage) {
         self.elements.insert(0, stage);
-        self.bless();
+        self.update_channels();
     }
 
     pub(crate) fn append_stage(&mut self, stage: Stage) {
         self.elements.push(stage);
-        self.bless();
+        self.update_channels();
     }
 
     /// Concatenate two LUT into a new single one
@@ -370,7 +394,7 @@ impl Pipeline {
             self.elements.push(stage.clone());
         }
 
-        self.bless();
+        self.update_channels();
     }
 }
 
@@ -378,8 +402,8 @@ impl fmt::Debug for Pipeline {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(
             f,
-            "Pipeline {{ elements: {:?}, channels: {} -> {}, save as 8: {:?} }}",
-            self.elements, self.input_channels, self.output_channels, self.save_as_8_bits
+            "Pipeline {{ elements: {:?}, channels: {} -> {} }}",
+            self.elements, self.input_channels, self.output_channels
         )
     }
 }

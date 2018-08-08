@@ -5,8 +5,10 @@ use lut::{Pipeline, Stage};
 use pcs::{xy_y_to_xyz, xyz_to_xy_y, MAX_ENCODEABLE_XYZ};
 use profile::Profile;
 use sampling::{detect_black_point, detect_dest_black_point};
-use transform::TransformFlags;
-use white_point::{adaptation_matrix, d50_xyz, temp_from_white_point, white_point_from_temp, mat3_per, mat3_eval};
+use transform_tmp::TransformFlags;
+use white_point::{
+    adaptation_matrix, d50_xyz, mat3_eval, mat3_per, temp_from_white_point, white_point_from_temp,
+};
 use {ColorSpace, Intent, ProfileClass, CIEXYZ};
 
 type IntentFn = fn(
@@ -14,7 +16,7 @@ type IntentFn = fn(
     intents: &[Intent],
     bpc: &[bool],
     adaptation_states: &[f64],
-    dw_flags: TransformFlags,
+    flags: TransformFlags,
 ) -> Result<Pipeline, String>;
 
 #[derive(Clone)]
@@ -320,7 +322,7 @@ fn add_conversion(
             result.append_stage(Stage::new_lab_to_xyz());
             result.append_stage(Stage::new_matrix(3, 3, mat_as_dbl, Some(off_as_dbl)));
             result.append_stage(Stage::new_xyz_to_lab());
-        }
+        },
         _ => {
             // On colorspaces other than PCS, check for same space
             if in_pcs != out_pcs {
@@ -358,7 +360,7 @@ fn default_icc_intents(
     intents: &[Intent],
     bpc: &[bool],
     adaptation_states: &[f64],
-    dw_flags: TransformFlags,
+    flags: TransformFlags,
 ) -> Result<Pipeline, String> {
     // For safety
     if profiles.is_empty() {
@@ -366,7 +368,7 @@ fn default_icc_intents(
     }
 
     // Allocate an empty LUT for holding the result. 0 as channel count means 'undefined'
-    let mut result = Pipeline::alloc(0, 0);
+    let mut result = Pipeline::new(0, 0);
 
     let mut current_cs = profiles[0].color_space;
 
@@ -433,7 +435,7 @@ fn default_icc_intents(
     }
 
     // Check for non-negatives clip
-    if dw_flags.contains(TransformFlags::NONEGATIVES) {
+    if flags.contains(TransformFlags::NONEGATIVES) {
         if current_cs == ColorSpace::Gray
             || current_cs == ColorSpace::RGB
             || current_cs == ColorSpace::CMYK
@@ -496,7 +498,7 @@ pub(super) fn link_profiles(
     intents: &[Intent],
     bpc: &[bool],
     adaptation_states: &[f64],
-    dw_flags: TransformFlags,
+    flags: TransformFlags,
 ) -> Result<Pipeline, String> {
     let mut bpc = bpc.to_owned();
 
@@ -517,7 +519,7 @@ pub(super) fn link_profiles(
     }
 
     match search_intent(intents[0]) {
-        Some(intent) => (intent.link)(profiles, intents, &bpc, adaptation_states, dw_flags),
+        Some(intent) => (intent.link)(profiles, intents, &bpc, adaptation_states, flags),
         None => Err("No such intent".into()),
     }
 }

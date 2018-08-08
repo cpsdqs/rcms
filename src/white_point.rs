@@ -1,6 +1,6 @@
 //! White points.
 
-use cgmath::{Matrix3, SquareMatrix, Vector3};
+use cgmath::{Matrix, Matrix3, SquareMatrix, Vector3};
 use pcs::{xy_y_to_xyz, xyz_to_xy_y};
 use {CIExyY, CIExyYTriple, CIEXYZ};
 
@@ -278,8 +278,6 @@ pub fn temp_from_white_point(white_point: CIExyY) -> Option<f64> {
     None
 }
 
-use cgmath::Matrix;
-
 pub(crate) fn mat3_per(a: Matrix3<f64>, b: Matrix3<f64>) -> Matrix3<f64> {
     // LCMS Mat3per’s arguments are swapped
     b * a
@@ -321,9 +319,21 @@ fn compute_chromatic_adaptation(
 
 /// Bradford matrix
 const BRADFORD: Matrix3<f64> = Matrix3 {
-    x: Vector3 { x: 0.8951, y: 0.2664, z: -0.1614 },
-    y: Vector3 { x: -0.7502, y: 1.7135, z: 0.0367 },
-    z: Vector3 { x: 0.0389, y: -0.0685, z: 1.0296 },
+    x: Vector3 {
+        x: 0.8951,
+        y: 0.2664,
+        z: -0.1614,
+    },
+    y: Vector3 {
+        x: -0.7502,
+        y: 1.7135,
+        z: 0.0367,
+    },
+    z: Vector3 {
+        x: 0.0389,
+        y: -0.0685,
+        z: 1.0296,
+    },
 };
 
 /// Returns the final chromatic adaptation from illuminant FromIll to Illuminant ToIll

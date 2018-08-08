@@ -1,19 +1,19 @@
 //! ICC profiles.
 
-use pack::formatter_for_color_space_of_profile;
 use cgmath::{Matrix, Matrix3, SquareMatrix};
 use gamma::ToneCurve;
 use lut::{Pipeline, Stage};
 use mlu::MLU;
+use named::NamedColorList;
+use pack::formatter_for_color_space_of_profile;
 use pcs::MAX_ENCODEABLE_XYZ;
 use std::any::Any;
 use std::collections::HashMap;
-use std::sync::Arc;
 use std::fmt;
+use std::sync::Arc;
 use time;
-use transform::NamedColorList;
 use white_point::{adaptation_matrix, d50_xyz};
-use {PixelFormat, CIExyYTriple, ColorSpace, ICCTag, Intent, ProfileClass, CIEXYZ};
+use {CIExyYTriple, ColorSpace, ICCTag, Intent, PixelFormat, ProfileClass, CIEXYZ};
 
 #[derive(Debug, Clone)]
 pub(crate) enum ProfileTagData {
@@ -237,8 +237,15 @@ impl Profile {
     pub(crate) fn is_matrix_shaper(&self) -> bool {
         match self.color_space {
             ColorSpace::Gray => self.has_tag(ICCTag::GrayTRC),
-            ColorSpace::RGB => self.has_tag(ICCTag::RedColorant) && self.has_tag(ICCTag::GreenColorant) && self.has_tag(ICCTag::BlueColorant) && self.has_tag(ICCTag::RedTRC) && self.has_tag(ICCTag::GreenTRC) && self.has_tag(ICCTag::BlueTRC),
-            _ => false
+            ColorSpace::RGB => {
+                self.has_tag(ICCTag::RedColorant)
+                    && self.has_tag(ICCTag::GreenColorant)
+                    && self.has_tag(ICCTag::BlueColorant)
+                    && self.has_tag(ICCTag::RedTRC)
+                    && self.has_tag(ICCTag::GreenTRC)
+                    && self.has_tag(ICCTag::BlueTRC)
+            }
+            _ => false,
         }
     }
 
@@ -252,8 +259,11 @@ impl Profile {
         let tag_table = match used_direction {
             USED_AS_INPUT => DEVICE_TO_PCS_16,
             USED_AS_OUTPUT => PCS_TO_DEVICE_16,
-            USED_AS_PROOF => return self.is_intent_supported(intent, USED_AS_INPUT) && self.is_intent_supported(Intent::RelativeColorimetric, USED_AS_OUTPUT),
-            _ => return false
+            USED_AS_PROOF => {
+                return self.is_intent_supported(intent, USED_AS_INPUT)
+                    && self.is_intent_supported(Intent::RelativeColorimetric, USED_AS_OUTPUT)
+            }
+            _ => return false,
         };
 
         self.has_tag(tag_table[intent as usize])
@@ -350,7 +360,7 @@ impl Profile {
                 None => return Err("No named color list".into()),
             };
 
-            let mut lut = Pipeline::alloc(0, 0);
+            let mut lut = Pipeline::new(0, 0);
             lut.prepend_stage(Stage::new_named(named_colors, true));
             lut.append_stage(Stage::new_labv2_to_v4());
             return Ok(lut);
@@ -525,9 +535,9 @@ impl Profile {
             },
         ];
 
-        let mut pipeline = Pipeline::alloc(3, 3);
+        let mut pipeline = Pipeline::new(3, 3);
 
-        pipeline.append_stage(Stage::new_tone_curves(3, Some(&shapes)));
+        pipeline.append_stage(Stage::new_tone_curves(3, &shapes));
         pipeline.append_stage(Stage::new_matrix(
             3,
             3,
@@ -580,7 +590,7 @@ impl Profile {
             shapes[2].reverse()?,
         ];
 
-        let mut pipeline = Pipeline::alloc(3, 3);
+        let mut pipeline = Pipeline::new(3, 3);
 
         // Note that it is certainly possible a single profile would have a LUT based
         // tag for output working in lab and a matrix-shaper for the fallback cases.
@@ -595,7 +605,7 @@ impl Profile {
             unsafe { &*(&inv as *const _ as *const [f64; 9]) },
             None,
         ));
-        pipeline.append_stage(Stage::new_tone_curves(3, Some(&inv_shapes)));
+        pipeline.append_stage(Stage::new_tone_curves(3, &inv_shapes));
 
         Ok(pipeline)
     }
@@ -629,7 +639,7 @@ impl Profile {
     /// tag name here may default to AToB0
     pub(crate) fn read_devicelink_lut(&self, intent: Intent) -> Result<Pipeline, String> {
         if intent as u32 > Intent::AbsoluteColorimetric as u32 {
-            return Err("Intent is not ICC".into())
+            return Err("Intent is not ICC".into());
         }
 
         let mut tag_16 = DEVICE_TO_PCS_16[intent as usize];
@@ -639,10 +649,10 @@ impl Profile {
         if self.device_class == ProfileClass::NamedColor {
             let named_colors: NamedColorList = match self.read_tag_clone(ICCTag::NamedColor2) {
                 Some(nc) => nc,
-                None => return Err("No named color list in profile".into())
+                None => return Err("No named color list in profile".into()),
             };
 
-            let mut pipeline = Pipeline::alloc(0, 0);
+            let mut pipeline = Pipeline::new(0, 0);
 
             pipeline.prepend_stage(Stage::new_named(named_colors, false));
             if self.color_space == ColorSpace::Lab {
@@ -706,7 +716,6 @@ impl Profile {
 
         Ok(pipeline)
     }
-
 
     // cmsio1.c
     // TODO: fn build_gray_input_pipeline(&self) -> Pipeline

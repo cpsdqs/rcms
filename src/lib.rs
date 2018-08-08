@@ -24,10 +24,12 @@ pub mod op;
 mod optimization;
 mod pack;
 pub mod pcs;
+pub mod pixel_format;
 mod plugin;
 pub mod profile;
 mod sampling;
 pub mod transform;
+pub mod transform_tmp;
 mod virtuals;
 pub mod white_point;
 
@@ -60,7 +62,7 @@ pub enum Intent {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum ColorSpace {
     /// `XYZ `
-    XYZ = 0x58595A20,
+    XYZ = 0x58595a20,
     /// `Lab `
     Lab = 0x4C616220,
     /// `Luv `
@@ -147,9 +149,16 @@ pub enum ColorSpace {
     LuvK = 0x4C75764B,
 }
 
+/// Profile connection spaces.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum PCS {
+    XYZ,
+    Lab,
+}
+
 impl ColorSpace {
     /// Returns the number of channels in the color space.
-    pub fn channels(self) -> u32 {
+    pub fn channels(self) -> usize {
         use ColorSpace::*;
         match self {
             MCH1 | S1Color | Gray => 1,

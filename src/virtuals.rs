@@ -1,12 +1,12 @@
 //! Virtual (built-in) profiles
 
 use gamma::ToneCurve;
+use lut::{Pipeline, Stage};
 use mlu::MLU;
 use pcs::xy_y_to_xyz;
 use profile::Profile;
-use white_point::{adaptation_matrix, build_rgb_to_xyz_transfer_matrix, d50_xyz, d50_xy_y};
+use white_point::{adaptation_matrix, build_rgb_to_xyz_transfer_matrix, d50_xy_y, d50_xyz};
 use {CIExyY, CIExyYTriple, ColorSpace, ICCTag, Intent, ProfileClass, CIEXYZ};
-use lut::{Pipeline, Stage};
 
 fn set_text_tags(profile: &mut Profile, description: &str) {
     let mut desc_mlu = MLU::new();
@@ -221,7 +221,7 @@ pub(crate) fn create_lab2_profile_thr(white_point: Option<CIExyY>) -> Result<Pro
     set_text_tags(&mut profile, "Lab identity built-in");
 
     // An identity LUT is all we need
-    let mut lut = Pipeline::alloc(3, 3);
+    let mut lut = Pipeline::new(3, 3);
     lut.prepend_stage(Stage::new_identity(3));
     profile.insert_tag(ICCTag::AToB0, lut);
 
@@ -241,7 +241,7 @@ pub(crate) fn create_lab4_profile_thr(white_point: Option<CIExyY>) -> Result<Pro
     set_text_tags(&mut profile, "Lab identity built-in");
 
     // An identity LUT is all we need
-    let mut lut = Pipeline::alloc(3, 3);
+    let mut lut = Pipeline::new(3, 3);
     lut.prepend_stage(Stage::new_identity_curves(3));
     profile.insert_tag(ICCTag::AToB0, lut);
 
@@ -286,10 +286,12 @@ impl Profile {
         create_srgb_profile_thr()
     }
 
+    /// Creates a new identity Lab v2 profile.
     pub fn new_lab2(wp: CIExyY) -> Result<Profile, ()> {
         create_lab2_profile_thr(Some(wp))
     }
 
+    /// Creates a new identity Lab v4 profile.
     pub fn new_lab4(wp: CIExyY) -> Result<Profile, ()> {
         create_lab4_profile_thr(Some(wp))
     }

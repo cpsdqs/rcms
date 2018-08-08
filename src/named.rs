@@ -1,5 +1,21 @@
 use lut::{Stage, StageData, StageType};
-use transform::NamedColorList;
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub(crate) struct NamedColor {
+    name: String,
+    pcs: [u16; 3],
+    device_colorant: [u16; 16],
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub(crate) struct NamedColorList {
+    pub colorants: usize,
+    pub prefix: [u8; 32],
+    pub prefix_end: u8,
+    pub suffix: [u8; 32],
+    pub suffix_end: u8,
+    pub colors: Vec<NamedColor>,
+}
 
 impl Stage {
     pub(crate) fn new_named(color_list: NamedColorList, use_pcs: bool) -> Stage {
