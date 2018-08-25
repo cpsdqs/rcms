@@ -2,12 +2,12 @@
 
 use cgmath::{Matrix3, SquareMatrix, Vector3, Zero};
 use lut::{Pipeline, Stage};
-use pcs::{xy_y_to_xyz, xyz_to_xy_y, MAX_ENCODEABLE_XYZ};
+use pcs::MAX_ENCODEABLE_XYZ;
 use profile::Profile;
 use sampling::{detect_black_point, detect_dest_black_point};
 use transform_tmp::TransformFlags;
 use white_point::{
-    adaptation_matrix, d50_xyz, mat3_eval, mat3_per, temp_from_white_point, white_point_from_temp,
+    adaptation_matrix, mat3_eval, mat3_per, temp_from_white_point, white_point_from_temp, D50,
 };
 use {ColorSpace, Intent, ProfileClass, CIEXYZ};
 
@@ -102,18 +102,17 @@ fn compute_black_point_compensation(
     // This is a linear scaling in the form ax+b, where
     // a = (bpout - D50) / (bpin - D50)
     // b = - D50* (bpout - bpin) / (bpin - D50)
-    let d50_xyz = d50_xyz();
-    let tx = black_point_in.x - d50_xyz.x;
-    let ty = black_point_in.y - d50_xyz.y;
-    let tz = black_point_in.z - d50_xyz.z;
+    let tx = black_point_in.x - D50.x;
+    let ty = black_point_in.y - D50.y;
+    let tz = black_point_in.z - D50.z;
 
-    let ax = (black_point_out.x - d50_xyz.x) / tx;
-    let ay = (black_point_out.y - d50_xyz.y) / ty;
-    let az = (black_point_out.z - d50_xyz.z) / tz;
+    let ax = (black_point_out.x - D50.x) / tx;
+    let ay = (black_point_out.y - D50.y) / ty;
+    let az = (black_point_out.z - D50.z) / tz;
 
-    let bx = -d50_xyz.x * (black_point_out.x - black_point_in.x) / tx;
-    let by = -d50_xyz.y * (black_point_out.y - black_point_in.y) / ty;
-    let bz = -d50_xyz.z * (black_point_out.z - black_point_in.z) / tz;
+    let bx = -D50.x * (black_point_out.x - black_point_in.x) / tx;
+    let by = -D50.y * (black_point_out.y - black_point_in.y) / ty;
+    let bz = -D50.z * (black_point_out.z - black_point_in.z) / tz;
 
     (
         Matrix3::from_diagonal((ax, ay, az).into()),
@@ -128,7 +127,7 @@ fn chad_to_temp(chad: Matrix3<f64>) -> Option<f64> {
         None => return None,
     };
 
-    let d50_xyz = d50_xyz();
+    let d50_xyz = D50;
     let s = Vector3::new(d50_xyz.x, d50_xyz.y, d50_xyz.z);
     let d = mat3_eval(inverse, s);
 
@@ -138,9 +137,7 @@ fn chad_to_temp(chad: Matrix3<f64>) -> Option<f64> {
         z: d.z,
     };
 
-    let dest_chromaticity = xyz_to_xy_y(dest);
-
-    temp_from_white_point(dest_chromaticity)
+    temp_from_white_point(dest.into())
 }
 
 /// Compute a CHAD based on a given temperature
@@ -149,8 +146,7 @@ fn temp_to_chad(temp: f64) -> Option<Matrix3<f64>> {
         Some(c) => c,
         None => return None,
     };
-    let white = xy_y_to_xyz(chromaticity_of_white);
-    adaptation_matrix(None, white, d50_xyz())
+    adaptation_matrix(None, chromaticity_of_white.into(), D50)
 }
 
 /// Join scalings to obtain relative input to absolute and then to relative output.

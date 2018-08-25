@@ -125,7 +125,7 @@ impl ToneCurve {
         ToneCurve::new(Vec::new(), values)
     }
 
-    /// Creates a segmented gamma curve and fill the table.
+    /// Creates a segmented gamma curve and fills the table.
     pub fn new_segmented(segments: Vec<CurveSegment>) -> Result<ToneCurve, String> {
         let grid_points = if segments.len() == 1 && segments[0].p_type == 1 {
             // optimization for identity curves
@@ -151,7 +151,7 @@ impl ToneCurve {
         Ok(tone_curve)
     }
 
-    /// Uses a segmented curve to store the floating point table
+    /// Uses a segmented curve to store the floating point table.
     pub fn new_tabulated(values: Vec<f32>) -> Result<ToneCurve, String> {
         // A segmented tone curve should have function segments in the first and last positions
         let last_value = *values.last().unwrap_or(&0.);
@@ -188,13 +188,11 @@ impl ToneCurve {
         ])
     }
 
-    // Parametric curves
-    //
-    // Parameters goes as: Curve, a, b, c, d, e, f
-    //
-    // Type is the ICC type +1
-    //
-    // if type is negative, then the curve is analytically inverted
+    /// Creates a new parametric tone curve.
+    ///
+    /// - Parameters: Curve type, a, b, c, d, e, f
+    /// - Curve type is the ICC type +1
+    /// - If the type is negative, then the curve is analytically inverted
     pub fn new_parametric(p_type: i32, params: &[f64]) -> Result<ToneCurve, String> {
         let mut pos = 0;
         let c = if let Some(c) = parametric_curve_by_type(p_type, &mut pos) {
@@ -223,6 +221,9 @@ impl ToneCurve {
         ToneCurve::new_parametric(1, &[gamma])
     }
 
+    /// Creates a new ToneCurve with the given segments and table.
+    ///
+    /// Segments xor values can be empty, and there must be fewer than 65531 values.
     pub fn new(segments: Vec<CurveSegment>, values: Vec<u16>) -> Result<ToneCurve, String> {
         // We allow huge tables, which are then restricted for smoothing operations
         if values.len() > 65530 {
@@ -295,16 +296,18 @@ impl ToneCurve {
         }
     }
 
+    /// Returns the table representation.
     pub fn estimated_table(&self) -> &[u16] {
         &self.table16
     }
 
+    /// Evaluates the tone curve at the given input value.
     pub fn eval_16(&self, _v: u16) -> u16 {
         // TODO
         unimplemented!()
     }
 
-    /// We need accuracy this time
+    /// Evaluates the tone curve at the given input value using floats.
     pub fn eval_float(&self, v: f32) -> f32 {
         // Check for 16 bits table. If so, this is a limited-precision tone curve
         if self.segments.is_empty() {
@@ -317,10 +320,13 @@ impl ToneCurve {
         }
     }
 
+    /// Reverses the curve with 4096 samples. (see `reverse_with_samples`)
     pub fn reverse(&self) -> Result<ToneCurve, String> {
         self.reverse_with_samples(4096)
     }
 
+    /// Reverses the curve, either analytically (if possible) or creating a table with the given
+    /// number of samples.
     pub fn reverse_with_samples(&self, _samples: u32) -> Result<ToneCurve, String> {
         // Try to reverse it analytically whatever possible
         if self.segments.len() == 1

@@ -52,7 +52,7 @@
 use internal::quick_saturate_word;
 use plugin::s15fixed16_to_double;
 use std::f64;
-use white_point::d50_xyz;
+use white_point::D50;
 use {CIELCh, CIELab, CIExyY, ColorSpace, PixelType, S15Fixed16, CIEXYZ};
 
 pub(crate) const MAX_ENCODEABLE_XYZ: f64 = 1.0 + 32767.0 / 32768.0;
@@ -61,23 +61,24 @@ const MAX_ENCODEABLE_AB2: f64 = (65535.0 / 256.0) - 128.0;
 const MIN_ENCODEABLE_AB4: f64 = -128.0;
 const MAX_ENCODEABLE_AB4: f64 = 127.0;
 
-// TODO: use Into/From traits:
-/// Converts XYZ to xyY.
-pub fn xyz_to_xy_y(src: CIEXYZ) -> CIExyY {
-    let sum = src.x + src.y + src.z;
-    CIExyY {
-        x: src.x / sum,
-        y: src.y / sum,
-        Y: src.y,
+impl Into<CIExyY> for CIEXYZ {
+    fn into(self) -> CIExyY {
+        let sum = self.x + self.y + self.z;
+        CIExyY {
+            x: self.x / sum,
+            y: self.y / sum,
+            Y: self.y,
+        }
     }
 }
 
-/// Converts xyY to XYZ.
-pub fn xy_y_to_xyz(src: CIExyY) -> CIEXYZ {
-    CIEXYZ {
-        x: src.x / src.y * src.Y,
-        y: src.Y,
-        z: (1. - src.x - src.y) / src.y * src.Y,
+impl Into<CIEXYZ> for CIExyY {
+    fn into(self) -> CIEXYZ {
+        CIEXYZ {
+            x: self.x / self.y * self.Y,
+            y: self.Y,
+            z: (1. - self.x - self.y) / self.y * self.Y,
+        }
     }
 }
 
@@ -112,7 +113,7 @@ fn f_1(t: f64) -> f64 {
 pub fn xyz_to_lab(white_point: Option<CIEXYZ>, xyz: CIEXYZ) -> CIELab {
     let white_point = match white_point {
         Some(wp) => wp,
-        None => d50_xyz(),
+        None => D50,
     };
 
     let fx = f(xyz.x / white_point.x);
@@ -130,7 +131,7 @@ pub fn xyz_to_lab(white_point: Option<CIEXYZ>, xyz: CIEXYZ) -> CIELab {
 pub fn lab_to_xyz(white_point: Option<CIEXYZ>, lab: CIELab) -> CIEXYZ {
     let white_point = match white_point {
         Some(wp) => wp,
-        None => d50_xyz(),
+        None => D50,
     };
 
     let y = (lab.L + 16.) / 116.;

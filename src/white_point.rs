@@ -1,24 +1,16 @@
 //! White points.
 
 use cgmath::{Matrix, Matrix3, SquareMatrix, Vector3};
-use pcs::{xy_y_to_xyz, xyz_to_xy_y};
 use {CIExyY, CIExyYTriple, CIEXYZ};
 
 /// D50 — widely used
-pub fn d50_xyz() -> CIEXYZ {
-    CIEXYZ {
-        x: 0.9642,
-        y: 1.,
-        z: 0.8249,
-    }
-}
+pub const D50: CIEXYZ = CIEXYZ {
+    x: 0.9642,
+    y: 1.,
+    z: 0.8249,
+};
 
-/// D50 white point in xyY
-pub fn d50_xy_y() -> CIExyY {
-    xyz_to_xy_y(d50_xyz())
-}
-
-/// Correlates a black body chromaticity from given temperature in Kelvin.
+/// Correlates a black body chromaticity from the given temperature in Kelvin.
 /// Valid input range is 4000–25000 K.
 pub fn white_point_from_temp(temp_k: f64) -> Option<CIExyY> {
     let t = temp_k;
@@ -350,8 +342,7 @@ pub(super) fn adaptation_matrix(
 
 /// Same as anterior, but assuming D50 destination. White point is given in xyY
 fn adapt_matrix_to_d50(mat: Matrix3<f64>, source_wp: CIExyY) -> Option<Matrix3<f64>> {
-    let dn = xy_y_to_xyz(source_wp);
-    adaptation_matrix(None, dn, d50_xyz()).map(|bradford| mat3_per(bradford, mat))
+    adaptation_matrix(None, source_wp.into(), D50).map(|bradford| mat3_per(bradford, mat))
 }
 
 /// Build a white point, primary chromas transfer matrix from RGB to CIE XYZ.

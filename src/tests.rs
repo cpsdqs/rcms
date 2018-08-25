@@ -60,7 +60,7 @@ fn aces_cg_srgb_round_trip() {
         ],
     ).unwrap();
 
-    let srgb = Profile::new_srgb().unwrap();
+    let srgb = Profile::new_srgb();
 
     let aces_to_srgb: Transform<RGB<f32>, RGB<f32>> =
         Transform::new(&aces_cg, &srgb, Intent::Perceptual).unwrap();

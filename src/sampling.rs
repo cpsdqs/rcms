@@ -3,9 +3,11 @@
 use cgmath::{Matrix3, Vector3};
 use pack::{formatter_for_color_space_of_profile, TYPE_LAB_DBL};
 use pcs::{end_points_by_space, lab_to_xyz, xyz_to_lab};
+use pixel_format::Lab;
 use profile::{Profile, USED_AS_INPUT, USED_AS_OUTPUT};
-use transform_tmp::{Transform, TransformFlags};
-use virtuals::{create_lab2_profile_thr, create_lab4_profile_thr};
+use transform::Transform;
+use transform_tmp;
+use virtuals::{create_lab2_profile_opt, create_lab4_profile_opt};
 use white_point::solve_matrix;
 use {CIELab, ColorSpace, Intent, ProfileClass, CIEXYZ};
 
@@ -16,8 +18,11 @@ const PERCEPTUAL_BLACK: CIEXYZ = CIEXYZ {
 };
 
 // PCS -> PCS round trip transform, always uses relative intent on the device -> pcs
-fn create_roundtrip_xform(profile: &Profile, intent: Intent) -> Result<Transform, String> {
-    let h_lab = create_lab4_profile_thr(None).unwrap();
+fn create_roundtrip_xform(
+    profile: &Profile,
+    intent: Intent,
+) -> Result<Transform<Lab<f64>, Lab<f64>>, String> {
+    let h_lab = create_lab4_profile_opt(None).unwrap();
     let bpc: [bool; 4] = [false, false, false, false];
     let states: [f64; 4] = [1., 1., 1., 1.];
     let profiles: [Profile; 4] = [h_lab.clone(), profile.clone(), profile.clone(), h_lab];
@@ -28,17 +33,7 @@ fn create_roundtrip_xform(profile: &Profile, intent: Intent) -> Result<Transform
         Intent::RelativeColorimetric,
     ];
 
-    Transform::new_extended(
-        &profiles,
-        &bpc,
-        &intents,
-        &states,
-        None,
-        0,
-        TYPE_LAB_DBL,
-        TYPE_LAB_DBL,
-        TransformFlags::NOCACHE | TransformFlags::NOOPTIMIZE,
-    )
+    Transform::new_ex(&profiles, &bpc, &intents, &states)
 }
 
 /// Use darker colorants to obtain black point. This works in the relative colorimetric intent and
@@ -70,19 +65,19 @@ fn black_point_as_darker_colorant(
     }
 
     // Lab will be used as the output space, but lab2 will avoid recursion
-    let h_lab = match create_lab2_profile_thr(None) {
+    let h_lab = match create_lab2_profile_opt(None) {
         Ok(p) => p,
         Err(()) => return Err("Failed to create lab2 profile".into()),
     };
 
     // Create the transform
-    let xform = Transform::new_flags(
+    let xform = transform_tmp::Transform::new_flags(
         profile,
         dw_format,
         &h_lab,
         TYPE_LAB_DBL,
         intent,
-        TransformFlags::NOOPTIMIZE | TransformFlags::NOCACHE,
+        transform_tmp::TransformFlags::NOOPTIMIZE | transform_tmp::TransformFlags::NOCACHE,
     )?;
 
     // Convert black to Lab
@@ -356,21 +351,12 @@ pub fn detect_dest_black_point(
             b: initial_lab.b.max(-50.).min(50.),
         };
 
-        let mut dest_lab = CIELab {
-            L: 0.,
-            a: 0.,
-            b: 0.,
-        };
-        unsafe {
-            round_trip.convert_any(
-                &lab as *const _ as *const (),
-                &mut dest_lab as *mut _ as *mut (),
-                1,
-            )
-        };
+        let in_lab = [lab.L, lab.a, lab.b];
+        let mut out_lab = [0.; 3];
+        round_trip.convert(&in_lab, &mut out_lab);
 
         in_ramp[l] = lab.L;
-        out_ramp[l] = dest_lab.L;
+        out_ramp[l] = out_lab[0];
     }
 
     // Make monotonic

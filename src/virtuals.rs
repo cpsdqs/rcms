@@ -3,9 +3,8 @@
 use gamma::ToneCurve;
 use lut::{Pipeline, Stage};
 use mlu::MLU;
-use pcs::xy_y_to_xyz;
 use profile::Profile;
-use white_point::{adaptation_matrix, build_rgb_to_xyz_transfer_matrix, d50_xy_y, d50_xyz};
+use white_point::{adaptation_matrix, build_rgb_to_xyz_transfer_matrix, D50};
 use {CIExyY, CIExyYTriple, ColorSpace, ICCTag, Intent, ProfileClass, CIEXYZ};
 
 fn set_text_tags(profile: &mut Profile, description: &str) {
@@ -26,7 +25,7 @@ fn set_seq_desc_tag(_profile: Profile, _model: &str) -> bool {
 
 // This function creates a profile based on white point, primaries and
 // transfer functions.
-fn create_rgb_profile_thr(
+fn create_rgb_profile_opt(
     white_point: Option<CIExyY>,
     primaries: Option<CIExyYTriple>,
     transfer_fn: Option<[ToneCurve; 3]>,
@@ -53,9 +52,8 @@ fn create_rgb_profile_thr(
     set_text_tags(&mut profile, "RGB built-in");
 
     if let Some(white_point) = white_point {
-        profile.insert_tag(ICCTag::MediaWhitePoint, d50_xyz());
-        let white_point_xyz = xy_y_to_xyz(white_point);
-        let chad = adaptation_matrix(None, white_point_xyz, d50_xyz()).unwrap();
+        profile.insert_tag(ICCTag::MediaWhitePoint, D50);
+        let chad = adaptation_matrix(None, white_point.into(), D50).unwrap();
 
         // this is a v4 tag but many CMS understand and read it regardless
         profile.insert_tag(ICCTag::ChromaticAdaptation, chad);
@@ -123,7 +121,7 @@ fn create_rgb_profile_thr(
     Ok(profile)
 }
 
-fn create_gray_profile_thr(white_point: Option<CIExyY>, transfer_fn: Option<ToneCurve>) -> Profile {
+fn create_gray_profile_opt(white_point: Option<CIExyY>, transfer_fn: Option<ToneCurve>) -> Profile {
     let mut profile = Profile::new(ProfileClass::Display, ColorSpace::Gray);
 
     profile.pcs = ColorSpace::XYZ;
@@ -142,7 +140,8 @@ fn create_gray_profile_thr(white_point: Option<CIExyY>, transfer_fn: Option<Tone
     set_text_tags(&mut profile, "gray built-in");
 
     if let Some(white_point) = white_point {
-        profile.insert_tag(ICCTag::MediaWhitePoint, xy_y_to_xyz(white_point));
+        let wp_xyz: CIEXYZ = white_point.into();
+        profile.insert_tag(ICCTag::MediaWhitePoint, wp_xyz);
     }
 
     if let Some(transfer_fn) = transfer_fn {
@@ -172,7 +171,7 @@ fn build_srgb_gamma() -> Result<ToneCurve, ()> {
 }
 
 /// Creates the ICC virtual profile for the sRGB color space
-fn create_srgb_profile_thr() -> Result<Profile, ()> {
+fn create_srgb_profile_opt() -> Result<Profile, ()> {
     let d65 = CIExyY {
         x: 0.3127,
         y: 0.3290,
@@ -203,14 +202,14 @@ fn create_srgb_profile_thr() -> Result<Profile, ()> {
         build_srgb_gamma()?,
     ];
 
-    let mut srgb = create_rgb_profile_thr(Some(d65), Some(rec709_primaries), Some(gamma22))?;
+    let mut srgb = create_rgb_profile_opt(Some(d65), Some(rec709_primaries), Some(gamma22))?;
     set_text_tags(&mut srgb, "sRGB built-in");
     Ok(srgb)
 }
 
 // Creates a fake Lab identity.
-pub(crate) fn create_lab2_profile_thr(white_point: Option<CIExyY>) -> Result<Profile, ()> {
-    let mut profile = create_rgb_profile_thr(Some(white_point.unwrap_or(d50_xy_y())), None, None)?;
+pub(crate) fn create_lab2_profile_opt(white_point: Option<CIExyY>) -> Result<Profile, ()> {
+    let mut profile = create_rgb_profile_opt(Some(white_point.unwrap_or(D50.into())), None, None)?;
 
     profile.set_version(2.1);
 
@@ -229,8 +228,8 @@ pub(crate) fn create_lab2_profile_thr(white_point: Option<CIExyY>) -> Result<Pro
 }
 
 // Creates a fake Lab V4 identity.
-pub(crate) fn create_lab4_profile_thr(white_point: Option<CIExyY>) -> Result<Profile, ()> {
-    let mut profile = create_rgb_profile_thr(Some(white_point.unwrap_or(d50_xy_y())), None, None)?;
+pub(crate) fn create_lab4_profile_opt(white_point: Option<CIExyY>) -> Result<Profile, ()> {
+    let mut profile = create_rgb_profile_opt(Some(white_point.unwrap_or(D50.into())), None, None)?;
 
     profile.set_version(4.3);
 
@@ -255,12 +254,12 @@ impl Profile {
         primaries: CIExyYTriple,
         transfer_fn: [ToneCurve; 3],
     ) -> Result<Profile, ()> {
-        create_rgb_profile_thr(Some(white_point), Some(primaries), Some(transfer_fn))
+        create_rgb_profile_opt(Some(white_point), Some(primaries), Some(transfer_fn))
     }
 
     /// Creates a new monochrome profile.
     pub fn new_gray(white_point: CIExyY, transfer_fn: ToneCurve) -> Profile {
-        create_gray_profile_thr(Some(white_point), Some(transfer_fn))
+        create_gray_profile_opt(Some(white_point), Some(transfer_fn))
     }
 
     /// Creates a new sRGB profile.
@@ -282,18 +281,19 @@ impl Profile {
     ///    G = ((G'sRGB + 0.055) / 1.055) ^ 2.4
     ///    B = ((B'sRGB + 0.055) / 1.055) ^ 2.4
     /// ```
-    pub fn new_srgb() -> Result<Profile, ()> {
-        create_srgb_profile_thr()
+    pub fn new_srgb() -> Profile {
+        // if this panics then something is very wrong
+        create_srgb_profile_opt().unwrap()
     }
 
     /// Creates a new identity Lab v2 profile.
     pub fn new_lab2(wp: CIExyY) -> Result<Profile, ()> {
-        create_lab2_profile_thr(Some(wp))
+        create_lab2_profile_opt(Some(wp))
     }
 
     /// Creates a new identity Lab v4 profile.
     pub fn new_lab4(wp: CIExyY) -> Result<Profile, ()> {
-        create_lab4_profile_thr(Some(wp))
+        create_lab4_profile_opt(Some(wp))
     }
 }
 

@@ -1,4 +1,4 @@
-//! ICC profiles.
+//! Color profiles.
 
 use cgmath::{Matrix, Matrix3, SquareMatrix};
 use gamma::ToneCurve;
@@ -12,7 +12,7 @@ use std::collections::HashMap;
 use std::fmt;
 use std::sync::Arc;
 use time;
-use white_point::{adaptation_matrix, d50_xyz};
+use white_point::{adaptation_matrix, D50};
 use {CIExyYTriple, ColorSpace, ICCTag, Intent, PixelFormat, ProfileClass, CIEXYZ};
 
 #[derive(Debug, Clone)]
@@ -27,7 +27,7 @@ pub(crate) struct ProfileTag {
     data: ProfileTagData,
 }
 
-///! An ICC profile.
+/// An ICC profile.
 #[derive(Clone)]
 pub struct Profile {
     // io_handler: ?,
@@ -205,11 +205,9 @@ impl Profile {
     /// Returns a media white point fixing some issues found in certain old profiles.
     pub fn media_white_point(&self) -> CIEXYZ {
         match self.read_tag_clone(ICCTag::MediaWhitePoint) {
-            Some(_) if self.version() < 4. && self.device_class == ProfileClass::Display => {
-                d50_xyz()
-            }
+            Some(_) if self.version() < 4. && self.device_class == ProfileClass::Display => D50,
             Some(tag) => tag,
-            None => d50_xyz(),
+            None => D50,
         }
     }
 
@@ -220,7 +218,7 @@ impl Profile {
             None => {
                 if self.version() < 4. && self.device_class == ProfileClass::Display {
                     match self.read_tag_clone(ICCTag::MediaWhitePoint) {
-                        Some(wp) => match adaptation_matrix(None, wp, d50_xyz()) {
+                        Some(wp) => match adaptation_matrix(None, wp, D50) {
                             Some(mat) => mat,
                             None => Matrix3::identity(),
                         },

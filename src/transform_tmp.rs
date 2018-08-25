@@ -1,4 +1,4 @@
-//! Transformation stuff.
+//! Transformation stuff (legacy)
 
 use alpha::handle_extra_channels;
 use convert::link_profiles;
@@ -13,7 +13,7 @@ use pack::{
 use pcs::lcms_color_space;
 use profile::Profile;
 use std::fmt;
-use white_point::d50_xyz;
+use white_point::D50;
 use {ColorSpace, ICCTag, Intent, PixelFormat, PixelType, ProfileClass, Technology, CIEXYZ};
 
 const DEFAULT_OBSERVER_ADAPTATION_STATE: f64 = 1.;
@@ -530,7 +530,7 @@ fn white_point(src: Option<CIEXYZ>) -> CIEXYZ {
             normalize_xyz(&mut wp);
             wp
         }
-        None => d50_xyz(),
+        None => D50,
     }
 }
 
