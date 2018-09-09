@@ -78,11 +78,13 @@ macro_rules! t_float {
         ($a >> 22) & 1
     };
 }
+/*
 macro_rules! t_optimized {
     ($o:expr) => {
         ($o >> 21) & 1
     };
 }
+*/
 macro_rules! t_colorspace {
     ($s:expr) => {
         ($s >> 16) & 31

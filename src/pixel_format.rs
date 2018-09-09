@@ -4,6 +4,7 @@ use internal::quick_saturate_word;
 use std::any::Any;
 use std::marker::PhantomData;
 use std::mem;
+use std::sync::Arc;
 use ColorSpace;
 
 /// Maximum number of channels per pixel.
@@ -34,7 +35,7 @@ struct StaticPixelFormatInfo {
     encode_float_fn: fn(&[f32; MAX_CHANNELS], &mut [u8]),
 }
 
-/// A static pixel format. (Also see DynPixelFormat)
+/// A static pixel format. (Also see [DynPixelFormat])
 pub trait PixelFormat {
     /// The primitive type of the pixel format.
     ///
@@ -73,9 +74,14 @@ pub trait PixelFormat {
     /// Returns the floating-point encoder function.
     const ENCODE_FLOAT_FN: EncodeFloatFn<Self::Element>;
 
+    /// Returns the number of total channels (i.e. element units per pixel).
+    fn total_channels() -> usize {
+        Self::CHANNELS + Self::EXTRA_CHANNELS
+    }
+
     /// Returns the byte size of an entire pixel.
     fn size() -> usize {
-        (Self::CHANNELS + Self::EXTRA_CHANNELS) * mem::size_of::<Self::Element>()
+        Self::total_channels() * mem::size_of::<Self::Element>()
     }
 
     /// Returns a new DynPixelFormat representing this PixelFormat.
@@ -89,12 +95,12 @@ pub trait PixelFormat {
             reverse: Self::REVERSE,
             element_size: mem::size_of::<Self::Element>(),
             user_info: unsafe {
-                Box::new(StaticPixelFormatInfo {
+                Arc::new(Box::new(StaticPixelFormatInfo {
                     decode_16_fn: mem::transmute(Self::DECODE_16_FN),
                     decode_float_fn: mem::transmute(Self::DECODE_FLOAT_FN),
                     encode_16_fn: mem::transmute(Self::ENCODE_16_FN),
                     encode_float_fn: mem::transmute(Self::ENCODE_FLOAT_FN),
-                })
+                }))
             },
             decode_16_fn: decode_16_dyn_proxy,
             decode_float_fn: decode_float_dyn_proxy,
@@ -107,6 +113,7 @@ pub trait PixelFormat {
 /// A dynamic pixel format that can be created at runtime.
 ///
 /// See PixelFormat for documentation.
+#[derive(Clone)]
 pub struct DynPixelFormat {
     pub space: ColorSpace,
     pub is_float: bool,
@@ -117,7 +124,7 @@ pub struct DynPixelFormat {
     pub element_size: usize,
 
     /// User info for the decode/encode functions.
-    pub user_info: Box<Any + Send + Sync>,
+    pub user_info: Arc<Box<Any + Send + Sync>>,
 
     pub decode_16_fn: fn(fmt: &DynPixelFormat, data: *const (), buf: &mut [u16; MAX_CHANNELS]),
     pub decode_float_fn: fn(fmt: &DynPixelFormat, data: *const (), buf: &mut [f32; MAX_CHANNELS]),
@@ -412,6 +419,118 @@ impl PixelFormat for Lab<f64> {
     const DECODE_FLOAT_FN: DecodeFloatFn<f64> = decode_float_lab_double;
     const ENCODE_16_FN: Encode16Fn<f64> = encode_16_3_double; // TODO
     const ENCODE_FLOAT_FN: EncodeFloatFn<f64> = encode_float_lab_double;
+}
+
+#[doc(hidden)]
+pub enum ElType {
+    Int, // TODO: actual integer types
+    Float,
+    Double,
+}
+
+impl ElType {
+    fn is_float(self) -> bool {
+        match self {
+            ElType::Float | ElType::Double => true,
+            _ => false,
+        }
+    }
+}
+
+#[doc(hidden)]
+pub trait PixelFormatElement: Copy {
+    fn el_type() -> ElType;
+}
+
+macro_rules! impl_pf_element_not_float {
+    ($($ty:ty),+) => {
+        $(
+        impl PixelFormatElement for $ty {
+            fn el_type() -> ElType {
+                ElType::Int
+            }
+        }
+        )+
+    }
+}
+
+impl_pf_element_not_float!(u8, u16, u32, u64, u128, i8, i16, i32, i64, i128);
+impl PixelFormatElement for f32 {
+    fn el_type() -> ElType {
+        ElType::Float
+    }
+}
+impl PixelFormatElement for f64 {
+    fn el_type() -> ElType {
+        ElType::Double
+    }
+}
+
+impl ColorSpace {
+    /// Creates a pixel format based on the element type and this color space.
+    ///
+    /// The element type must be one of the number primitives.
+    ///
+    /// # Examples
+    /// ```
+    /// # use lcms_prime::ColorSpace;
+    /// # use lcms_prime::pixel_format::DynPixelFormat;
+    /// let pixel_format: DynPixelFormat = ColorSpace::RGB.pixel_format::<f32>().unwrap();
+    /// assert_eq!(pixel_format.space, ColorSpace::RGB);
+    /// assert_eq!(pixel_format.is_float, true);
+    /// ```
+    pub fn pixel_format<Element: PixelFormatElement>(self) -> Result<DynPixelFormat, String> {
+        macro_rules! match_cs_el {
+            ($(($cs:pat, $el:pat) => $key:ty),+, _ => $else:expr,) => {
+                match (self, Element::el_type()) {
+                    $(
+                    ($cs, $el) => (
+                        mem::transmute(<$key as PixelFormat>::DECODE_16_FN),
+                        mem::transmute(<$key as PixelFormat>::DECODE_FLOAT_FN),
+                        mem::transmute(<$key as PixelFormat>::ENCODE_16_FN),
+                        mem::transmute(<$key as PixelFormat>::ENCODE_FLOAT_FN),
+                    ),
+                    )+
+                    _ => $else
+                }
+            }
+        }
+        let (decode_16_fn, decode_float_fn, encode_16_fn, encode_float_fn) = unsafe {
+            match_cs_el! {
+                (ColorSpace::Gray, ElType::Float) => Gray<f32>,
+                (ColorSpace::Gray, ElType::Double) => Gray<f64>,
+                (ColorSpace::RGB, ElType::Float) => RGB<f32>,
+                (ColorSpace::RGB, ElType::Double) => RGB<f64>,
+                (ColorSpace::CMYK, ElType::Float) => CMYK<f32>,
+                (ColorSpace::CMYK, ElType::Double) => CMYK<f64>,
+                (ColorSpace::Lab, ElType::Float) => Lab<f32>,
+                (ColorSpace::Lab, ElType::Double) => Lab<f64>,
+                _ => return Err("Could not find suitable decoder and encoder functions".into()),
+            }
+        };
+
+        Ok(DynPixelFormat {
+            space: self,
+            is_float: Element::el_type().is_float(),
+            channels: self.channels(),
+            extra_channels: 0,
+            extra_first: false,
+            reverse: false,
+            element_size: mem::size_of::<Element>(),
+
+            user_info: Arc::new(Box::new(StaticPixelFormatInfo {
+                decode_16_fn,
+                decode_float_fn,
+                encode_16_fn,
+                encode_float_fn,
+            })),
+
+            decode_16_fn: decode_16_dyn_proxy,
+            decode_float_fn: decode_float_dyn_proxy,
+            encode_16_fn: encode_16_dyn_proxy,
+            encode_float_fn: encode_float_dyn_proxy,
+        })
+    }
 }
 
 #[test]

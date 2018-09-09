@@ -52,11 +52,10 @@ use lut::Pipeline;
 use pixel_format::{DynPixelFormat, PixelFormat, MAX_CHANNELS};
 use profile::Profile;
 use std::marker::PhantomData;
-use std::{fmt, mem, slice};
+use std::{fmt, slice};
 use transform_tmp::TransformFlags;
 use {ColorSpace, Intent, ProfileClass};
 
-type TransformFn<I, O> = fn(transform: &Transform<I, O>, input: &[u8], output: &mut [u8]);
 type DynTransformFn = fn(
     transform: &DynTransform,
     in_fmt: &DynPixelFormat,
@@ -65,9 +64,8 @@ type DynTransformFn = fn(
     output: &mut [u8],
 );
 
-// TODO: deduplicate code
-
 /// A dynamic transform; unsafe but supports dynamic pixel formats.
+#[derive(Clone)]
 pub struct DynTransform {
     pipeline: Pipeline,
     intent: Intent,
@@ -194,53 +192,38 @@ impl DynTransform {
         Ok(transform)
     }
 
-    /// Converts values in an input buffer to values in the output buffer.
-    ///
-    /// Lengths are in bytes.
-    pub fn convert(&self, input: *const (), input_len: usize, output: *mut (), output_len: usize) {
-        let input = unsafe { slice::from_raw_parts(input as *const u8, input_len) };
-        let output = unsafe { slice::from_raw_parts_mut(output as *mut u8, output_len) };
+    /// Converts values from the input color space to the output color space.
+    pub unsafe fn convert(&self, input: *const (), output: *mut (), pixel_count: usize) {
+        let input_len = pixel_count * self.in_fmt.size();
+        let output_len = pixel_count * self.out_fmt.size();
+        let input = slice::from_raw_parts(input as *const u8, input_len);
+        let output = slice::from_raw_parts_mut(output as *mut u8, output_len);
         (self.transform_fn)(self, &self.in_fmt, &self.out_fmt, input, output);
     }
 }
 
 /// A transform.
+///
+/// This is simply a safe wrapper around [DynTransform].
+#[derive(Clone)]
 pub struct Transform<InFmt: PixelFormat, OutFmt: PixelFormat> {
-    pipeline: Pipeline,
-    intent: Intent,
-    transform_fn: TransformFn<InFmt, OutFmt>,
-
+    inner: DynTransform,
     _phantom_in: PhantomData<InFmt>,
     _phantom_out: PhantomData<OutFmt>,
 }
 
 impl<InFmt: PixelFormat, OutFmt: PixelFormat> Transform<InFmt, OutFmt> {
-    fn alloc(pipeline: Pipeline, intent: Intent) -> Transform<InFmt, OutFmt> {
-        let transform_fn = if InFmt::IS_FLOAT && OutFmt::IS_FLOAT {
-            transform_float
-        } else {
-            unimplemented!()
-        };
-
-        Transform {
-            pipeline,
-            intent,
-            transform_fn,
-
-            _phantom_in: PhantomData,
-            _phantom_out: PhantomData,
-        }
-    }
-
     /// Creates a new transform with two profiles.
     pub fn new(
         input: &Profile,
         output: &Profile,
         intent: Intent,
     ) -> Result<Transform<InFmt, OutFmt>, String> {
-        let profiles = vec![input.clone(), output.clone()];
-
-        Self::new_multi(&profiles, intent, false)
+        Ok(Transform {
+            inner: DynTransform::new(input, output, intent, InFmt::dyn(), OutFmt::dyn())?,
+            _phantom_in: PhantomData,
+            _phantom_out: PhantomData,
+        })
     }
 
     /// Creates a new transform with arbitrarily many profiles, an intent, and optional black point compensation.
@@ -249,18 +232,11 @@ impl<InFmt: PixelFormat, OutFmt: PixelFormat> Transform<InFmt, OutFmt> {
         intent: Intent,
         bpc: bool,
     ) -> Result<Transform<InFmt, OutFmt>, String> {
-        let mut bpcs = Vec::with_capacity(256);
-        let mut intents = Vec::with_capacity(256);
-        let mut adaptation_states = Vec::with_capacity(256);
-
-        for _ in profiles {
-            // bpc.push(dw_flags.contains(TransformFlags::BLACKPOINTCOMPENSATION));
-            bpcs.push(bpc);
-            intents.push(intent);
-            adaptation_states.push(-1.); // TODO: check if this is fine
-        }
-
-        Self::new_ex(profiles, &bpcs, &intents, &adaptation_states)
+        Ok(Transform {
+            inner: DynTransform::new_multi(profiles, intent, bpc, InFmt::dyn(), OutFmt::dyn())?,
+            _phantom_in: PhantomData,
+            _phantom_out: PhantomData,
+        })
     }
 
     /// Creates a new transform.
@@ -272,63 +248,46 @@ impl<InFmt: PixelFormat, OutFmt: PixelFormat> Transform<InFmt, OutFmt> {
         intents: &[Intent],
         adaptation_states: &[f64],
     ) -> Result<Transform<InFmt, OutFmt>, String> {
-        // TODO: better errors
-        let (entry_cs, exit_cs) = match input_output_spaces(profiles) {
-            Some(x) => x,
-            None => return Err("Too few profiles in transform".into()),
-        };
-
-        if entry_cs != InFmt::SPACE {
-            return Err("Entry color space doesn’t match input format".into());
-        }
-        if exit_cs != OutFmt::SPACE {
-            return Err("Exit color space doesn’t match output format".into());
-        }
-
-        let pipeline = link_profiles(
-            profiles,
-            intents,
-            bpc,
-            adaptation_states,
-            TransformFlags::empty(),
-        )?;
-
-        if entry_cs.channels() != pipeline.input_channels() {
-            return Err(
-                "Entry color space and pipeline input don’t have the same channel count".into(),
-            );
-        }
-
-        if exit_cs.channels() != pipeline.output_channels() {
-            return Err(
-                "Exit color space and pipeline output don’t have the same channel count".into(),
-            );
-        }
-
-        let transform = Self::alloc(pipeline, *intents.last().unwrap());
-
-        // TODO: gamut check
-        // TODO: 16-bit colorant stuff
-        // TODO: cache stuff etc.
-
-        Ok(transform)
+        Ok(Transform {
+            inner: DynTransform::new_ex(
+                profiles,
+                bpc,
+                intents,
+                adaptation_states,
+                InFmt::dyn(),
+                OutFmt::dyn(),
+            )?,
+            _phantom_in: PhantomData,
+            _phantom_out: PhantomData,
+        })
     }
 
-    /// Converts values in an input buffer to values in the output buffer.
+    /// Converts values from the input color space to the output color space.
     pub fn convert(&self, input: &[InFmt::Element], output: &mut [OutFmt::Element]) {
-        let input = unsafe {
-            slice::from_raw_parts(
+        let in_pixels = input.len() / InFmt::total_channels();
+        let out_pixels = output.len() / OutFmt::total_channels();
+        unsafe {
+            self.inner.convert(
                 input.as_ptr() as *const _,
-                input.len() * mem::size_of::<InFmt::Element>(),
+                output.as_mut_ptr() as *mut _,
+                in_pixels.min(out_pixels),
             )
-        };
-        let output = unsafe {
-            slice::from_raw_parts_mut(
-                output.as_ptr() as *mut _,
-                output.len() * mem::size_of::<OutFmt::Element>(),
-            )
-        };
-        (self.transform_fn)(self, input, output);
+        }
+    }
+
+    /// Returns the inner DynTransform.
+    pub fn into_dyn(self) -> DynTransform {
+        self.inner
+    }
+}
+
+impl fmt::Debug for DynTransform {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(
+            f,
+            "DynTransform {{ intent: {:?}, pipeline: {:?} }}",
+            self.intent, self.pipeline
+        )
     }
 }
 
@@ -337,7 +296,7 @@ impl<InFmt: PixelFormat, OutFmt: PixelFormat> fmt::Debug for Transform<InFmt, Ou
         write!(
             f,
             "Transform {{ intent: {:?}, pipeline: {:?} }}",
-            self.intent, self.pipeline
+            self.inner.intent, self.inner.pipeline
         )
     }
 }
@@ -380,64 +339,6 @@ fn input_output_spaces(profiles: &[Profile]) -> Option<(ColorSpace, ColorSpace)>
     match cs_in {
         Some(cs_in) => Some((cs_in, cs_out.unwrap())),
         None => None,
-    }
-}
-
-/// Handles a transformation using floats.
-///
-/// The input and output buffers are for all intents and purposes void pointers with lengths.
-fn transform_float<I, O>(transform: &Transform<I, O>, input: &[u8], output: &mut [u8])
-where
-    I: PixelFormat,
-    O: PixelFormat,
-{
-    let px_size_in = I::size();
-    let px_size_out = O::size();
-
-    if output.len() / px_size_out < input.len() / px_size_in {
-        return; // TODO: error
-    }
-
-    // TODO: handle extra channels
-    // handle_extra_channels(transform, input as *const _ as *const _, output as *mut _ as *mut _, input.len(), 1, 0);
-
-    let offset_in = if I::EXTRA_FIRST {
-        I::EXTRA_CHANNELS * mem::size_of::<I::Element>()
-    } else {
-        0
-    };
-    let offset_out = if O::EXTRA_FIRST {
-        O::EXTRA_CHANNELS * mem::size_of::<O::Element>()
-    } else {
-        0
-    };
-
-    for i in 0..(input.len() / px_size_in) {
-        let pos_in = i * px_size_in + offset_in;
-        let pos_out = i * px_size_out + offset_out;
-
-        let mut buf_input = [0.; MAX_CHANNELS];
-        I::DECODE_FLOAT_FN(
-            if I::REVERSE {
-                unimplemented!()
-            } else {
-                unsafe { &*(&input[pos_in..] as *const _ as *const _) }
-            },
-            &mut buf_input,
-        );
-
-        // TODO: gamut check
-        let mut buf_output = [0.; MAX_CHANNELS];
-        transform.pipeline.eval_float(&buf_input, &mut buf_output);
-
-        O::ENCODE_FLOAT_FN(
-            &buf_output,
-            if O::REVERSE {
-                unimplemented!()
-            } else {
-                unsafe { &mut *(&mut output[pos_out..] as *mut _ as *mut _) }
-            },
-        );
     }
 }
 

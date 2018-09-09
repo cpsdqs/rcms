@@ -1,12 +1,11 @@
 // TODO
 
 use cgmath::{Matrix3, Vector3};
-use pack::{formatter_for_color_space_of_profile, TYPE_LAB_DBL};
+use pack::{formatter_for_color_space_of_profile};
 use pcs::{end_points_by_space, lab_to_xyz, xyz_to_lab};
-use pixel_format::Lab;
+use pixel_format::{Lab, PixelFormat};
 use profile::{Profile, USED_AS_INPUT, USED_AS_OUTPUT};
-use transform::Transform;
-use transform_tmp;
+use transform::{DynTransform, Transform};
 use virtuals::{create_lab2_profile_opt, create_lab4_profile_opt};
 use white_point::solve_matrix;
 use {CIELab, ColorSpace, Intent, ProfileClass, CIEXYZ};
@@ -71,13 +70,12 @@ fn black_point_as_darker_colorant(
     };
 
     // Create the transform
-    let xform = transform_tmp::Transform::new_flags(
+    let xform = DynTransform::new(
         profile,
-        dw_format,
         &h_lab,
-        TYPE_LAB_DBL,
         intent,
-        transform_tmp::TransformFlags::NOOPTIMIZE | transform_tmp::TransformFlags::NOCACHE,
+        profile.color_space.pixel_format::<u16>()?,
+        Lab::<f64>::dyn(),
     )?;
 
     // Convert black to Lab
@@ -87,12 +85,12 @@ fn black_point_as_darker_colorant(
         b: 0.,
     };
     unsafe {
-        xform.convert_any(
+        xform.convert(
             &black as *const _ as *const (),
             &mut lab as *mut _ as *mut (),
             1,
-        )
-    };
+        );
+    }
 
     // Force it to be neutral, clip to max. L* of 50
     lab.a = 0.;

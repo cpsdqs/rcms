@@ -17,7 +17,7 @@ use std::mem;
 ///
 /// # Examples
 /// ```
-/// # use lcms_prime::op::*;
+/// # use lcms_prime::ScalarOp;
 /// let ops = vec![ScalarOp::Mul(2.), ScalarOp::Add(4.), ScalarOp::Pow(2.)];
 ///
 /// assert_eq!(ScalarOp::eval(&ops, 12.), (12f64 * 2. + 4.).powf(2.));

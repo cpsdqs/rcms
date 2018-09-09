@@ -5,7 +5,6 @@ use gamma::ToneCurve;
 use lut::{Pipeline, Stage};
 use mlu::MLU;
 use named::NamedColorList;
-use pack::formatter_for_color_space_of_profile;
 use pcs::MAX_ENCODEABLE_XYZ;
 use std::any::Any;
 use std::collections::HashMap;
@@ -13,7 +12,7 @@ use std::fmt;
 use std::sync::Arc;
 use time;
 use white_point::{adaptation_matrix, D50};
-use {CIExyYTriple, ColorSpace, ICCTag, Intent, PixelFormat, ProfileClass, CIEXYZ};
+use {CIExyYTriple, ColorSpace, ICCTag, Intent, ProfileClass, CIEXYZ};
 
 #[derive(Debug, Clone)]
 pub(crate) enum ProfileTagData {
@@ -606,10 +605,6 @@ impl Profile {
         pipeline.append_stage(Stage::new_tone_curves(3, &inv_shapes));
 
         Ok(pipeline)
-    }
-
-    pub fn formatter_for_cs(&self, bytes: u32, float: bool) -> PixelFormat {
-        formatter_for_color_space_of_profile(self, bytes, float)
     }
 
     // Read the AToD0 tag, adjusting the encoding of Lab or XYZ if neded

@@ -195,6 +195,7 @@ impl ToneCurve {
     /// - If the type is negative, then the curve is analytically inverted
     pub fn new_parametric(p_type: i32, params: &[f64]) -> Result<ToneCurve, String> {
         let mut pos = 0;
+        // TODO: make this an enum or something to eliminate error case
         let c = if let Some(c) = parametric_curve_by_type(p_type, &mut pos) {
             c
         } else {

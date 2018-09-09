@@ -18,30 +18,32 @@ mod gamut;
 mod half;
 mod internal;
 mod lut;
-pub mod mlu;
+mod mlu;
 mod named;
-pub mod op;
+mod op;
 mod optimization;
 mod pack;
 pub mod pcs;
 pub mod pixel_format;
 mod plugin;
-pub mod profile;
+mod profile;
 mod sampling;
 pub mod transform;
-pub mod transform_tmp;
+mod transform_tmp;
 mod virtuals;
 pub mod white_point;
 
+pub use mlu::MLU;
 pub use gamma::ToneCurve;
+pub use op::ScalarOp;
 pub use profile::Profile;
 pub use transform::Transform;
 
 #[cfg(test)]
 mod tests;
 
-pub type S15Fixed16 = i32;
-pub type PixelFormat = u32;
+type S15Fixed16 = i32;
+type PixelFormat = u32;
 
 /// Rendering intents.
 #[repr(u32)]
