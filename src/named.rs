@@ -1,14 +1,14 @@
-use lut::{Stage, StageData, StageType};
+use pipe::{Stage, StageData, StageType};
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub(crate) struct NamedColor {
+pub struct NamedColor {
     name: String,
     pcs: [u16; 3],
     device_colorant: [u16; 16],
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub(crate) struct NamedColorList {
+pub struct NamedColorList {
     pub colorants: usize,
     pub prefix: [u8; 32],
     pub prefix_end: u8,

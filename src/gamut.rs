@@ -1,4 +1,4 @@
-use lut::Pipeline;
+use pipe::Pipeline;
 use profile::Profile;
 use Intent;
 

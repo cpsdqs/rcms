@@ -2,7 +2,7 @@
 
 use cgmath::{Matrix, Matrix3, SquareMatrix};
 use gamma::ToneCurve;
-use lut::{Pipeline, Stage};
+use pipe::{Pipeline, Stage};
 use mlu::MLU;
 use named::NamedColorList;
 use pcs::MAX_ENCODEABLE_XYZ;

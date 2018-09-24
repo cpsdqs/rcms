@@ -2,7 +2,7 @@
 
 use alpha::handle_extra_channels;
 use convert::link_profiles;
-use lut::Pipeline;
+use pipe::Pipeline;
 use mlu::MLU;
 use named::NamedColor;
 use optimization::optimize_pipeline;

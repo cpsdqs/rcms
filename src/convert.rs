@@ -1,7 +1,7 @@
 //! Color conversion.
 
 use cgmath::{Matrix3, SquareMatrix, Vector3, Zero};
-use lut::{Pipeline, Stage};
+use pipe::{Pipeline, Stage};
 use pcs::MAX_ENCODEABLE_XYZ;
 use profile::Profile;
 use sampling::{detect_black_point, detect_dest_black_point};

@@ -1,7 +1,7 @@
 //! Virtual (built-in) profiles
 
 use gamma::ToneCurve;
-use lut::{Pipeline, Stage};
+use pipe::{Pipeline, Stage};
 use mlu::MLU;
 use profile::Profile;
 use white_point::{adaptation_matrix, build_rgb_to_xyz_transfer_matrix, D50};

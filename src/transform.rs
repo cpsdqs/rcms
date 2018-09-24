@@ -48,7 +48,7 @@
 //! ```
 
 use convert::link_profiles;
-use lut::Pipeline;
+use pipe::Pipeline;
 use pixel_format::{DynPixelFormat, PixelFormat, MAX_CHANNELS};
 use profile::Profile;
 use std::marker::PhantomData;
@@ -200,6 +200,11 @@ impl DynTransform {
         let output = slice::from_raw_parts_mut(output as *mut u8, output_len);
         (self.transform_fn)(self, &self.in_fmt, &self.out_fmt, input, output);
     }
+
+    /// Returns the inner pipeline.
+    pub fn pipeline(&self) -> &Pipeline {
+        &self.pipeline
+    }
 }
 
 /// A transform.
@@ -278,6 +283,11 @@ impl<InFmt: PixelFormat, OutFmt: PixelFormat> Transform<InFmt, OutFmt> {
     /// Returns the inner DynTransform.
     pub fn into_dyn(self) -> DynTransform {
         self.inner
+    }
+
+    /// Returns the inner pipeline.
+    pub fn pipeline(&self) -> &Pipeline {
+        &self.inner.pipeline
     }
 }
 

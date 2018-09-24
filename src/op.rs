@@ -176,9 +176,9 @@ impl ScalarOp {
         res
     }
 
-    /// Compiles GLSL code for the given set of operations.
+    /// Compiles C-like code for the given set of operations.
     ///
-    /// `var_type` should either be `float` or `double`.
+    /// `var_type` should be something like `float` or `double`.
     pub fn compile_shader(ops: &[ScalarOp], var_name: &str, var_type: &str) -> String {
         (if ScalarOp::ops_require_y(ops) {
             format!("{} _tmp = 0.;\n", var_type)

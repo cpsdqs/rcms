@@ -17,7 +17,7 @@ pub mod gamma;
 mod gamut;
 mod half;
 mod internal;
-mod lut;
+pub mod pipe;
 mod mlu;
 mod named;
 mod op;

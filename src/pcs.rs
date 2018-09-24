@@ -55,7 +55,7 @@ use std::f64;
 use white_point::D50;
 use {CIELCh, CIELab, CIExyY, ColorSpace, PixelType, S15Fixed16, CIEXYZ};
 
-pub(crate) const MAX_ENCODEABLE_XYZ: f64 = 1.0 + 32767.0 / 32768.0;
+pub const MAX_ENCODEABLE_XYZ: f64 = 1.0 + 32767.0 / 32768.0;
 const MIN_ENCODEABLE_AB2: f64 = -128.0;
 const MAX_ENCODEABLE_AB2: f64 = (65535.0 / 256.0) - 128.0;
 const MIN_ENCODEABLE_AB4: f64 = -128.0;

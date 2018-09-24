@@ -1,3 +1,5 @@
+//! Transform pipeline.
+
 use alpha::MAX_CHANNELS;
 use gamma::ToneCurve;
 use internal::quick_saturate_word;
@@ -8,13 +10,39 @@ use {CIELab, CIEXYZ};
 
 type StageEvalFn = fn(&[f32], &mut [f32], &Stage);
 
-/// Multi process elements types
+/// Multi-process element types.
+///
+/// All types marked “impl” are actual stage types with different implementations and should all be
+/// covered e.g. when translating to GPU shaders.
 #[repr(u32)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum StageType {
-    /// `cvst`
+    /// `cvst` (**impl**)
+    ///
+    /// This stage type has [StageData::Curves] data.
+    ///
+    /// In pseudocode:
+    /// ```text
+    /// output_channels = input_channels.map(|value, index| {
+    ///     data.curves[index].eval(value)
+    /// });
+    /// ```
     CurveSet = 0x63767374,
-    /// `matf`
+
+    /// `matf` (**impl**)
+    ///
+    /// This stage type has [StageData::Matrix] data.
+    ///
+    /// In pseudocode (column-major):
+    /// ```text
+    /// for i in 0..output_channels.len() {
+    ///     let mut a = 0.;
+    ///     input_channels.for_each(|value, j| {
+    ///         a += value * matrix[i][j];
+    ///     });
+    ///     output_channels[i] = a + offsets[i];
+    /// }
+    /// ```
     Matrix = 0x6D617466,
     /// `clut`
     CLut = 0x636C7574,
@@ -24,37 +52,50 @@ pub enum StageType {
     /// `eACS`
     EAcs = 0x65414353,
 
-    // Custom from here, not in the ICC Spec
-    /// `l2x `
+    /// (non-ICC) `l2x ` (**impl**)
+    ///
+    /// Converts between PCS; 3 inputs & 3 outputs.
+    ///
+    /// (See `evaluate_xyz_to_lab` in this file for reference)
     XYZ2Lab = 0x6C327820,
-    /// `x2l `
+
+    /// (non-ICC) `x2l ` (**impl**)
+    ///
+    /// Converts between PCS; 3 inputs & 3 outputs.
+    ///
+    /// (See `evaluate_lab_to_xyz` in this file for reference)
     Lab2XYZ = 0x78326C20,
-    /// `ncl `
+    /// (non-ICC) `ncl `
     NamedColor = 0x6E636C20,
-    /// `2 4 `
+    /// (non-ICC) `2 4 `
     LabV2toV4 = 0x32203420,
-    /// `4 2 `
+    /// (non-ICC) `4 2 `
     LabV4toV2 = 0x34203220,
 
-    // Identities
-    /// `idn `
+    /// (non-ICC) `idn ` (**impl**)
+    ///
+    /// Copies input to output.
     Identity = 0x69646E20,
 
     // Float to floatPCS
-    /// `d2l `
+    /// (non-ICC) `d2l `
     Lab2FloatPCS = 0x64326C20,
-    /// `l2d `
+    /// (non-ICC) `l2d `
     FloatPCS2Lab = 0x6C326420,
-    /// `d2x `
+    /// (non-ICC) `d2x `
     XYZ2FloatPCS = 0x64327820,
-    /// `x2d `
+    /// (non-ICC) `x2d `
     FloatPCS2XYZ = 0x78326420,
-    /// `clp `
+
+    /// (non-ICC) `clp ` (**impl**)
+    ///
+    /// Copies input to output and clamps all values below zero to zero.
     ClipNegatives = 0x636c7020,
 }
 
+/// Parameters for pipeline stages.
 #[derive(Debug, Clone)]
-pub(crate) enum StageData {
+pub enum StageData {
     None,
     Matrix {
         matrix: Vec<f64>,
@@ -64,6 +105,7 @@ pub(crate) enum StageData {
     NamedColorList(NamedColorList),
 }
 
+/// A pipeline stage.
 #[derive(Clone)]
 pub struct Stage {
     ty: StageType,
@@ -129,7 +171,10 @@ impl Stage {
         )
     }
 
-    /// Creates a new matrix stage. Rows and columns are output and input channels, respectively.
+    /// Creates a new matrix stage. Rows and columns are input and output channels, respectively
+    /// (in column-major order).
+    ///
+    /// Note that this should be a 3x3 matrix and that the offset shoul simply be a 3-vector.
     pub fn new_matrix(rows: usize, cols: usize, matrix: &[f64], offset: Option<&[f64]>) -> Stage {
         Self::alloc(
             StageType::Matrix,
@@ -294,6 +339,33 @@ impl Stage {
     }
 }
 
+impl Stage {
+    /// The actual stage type.
+    pub fn stage_type(&self) -> StageType {
+        self.ty
+    }
+
+    /// The conversion kind this stage implements.
+    pub fn impl_type(&self) -> StageType {
+        self.implements
+    }
+
+    /// The number of input channels.
+    pub fn input_channels(&self) -> usize {
+        self.input_channels
+    }
+
+    /// The number of output channels.
+    pub fn output_channels(&self) -> usize {
+        self.output_channels
+    }
+
+    /// Stage parameters.
+    pub fn data(&self) -> &StageData {
+        &self.data
+    }
+}
+
 impl fmt::Debug for Stage {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(
@@ -310,6 +382,7 @@ type PipelineEval16Fn = fn(&[u16], &mut [u16], &Pipeline);
 /// Pipeline evaluator (in floating point)
 type PipelineEvalFloatFn = fn(&[f32], &mut [f32], &Pipeline);
 
+/// A pipeline.
 #[derive(Clone)]
 pub struct Pipeline {
     elements: Vec<Stage>,
@@ -321,7 +394,10 @@ pub struct Pipeline {
 }
 
 impl Pipeline {
-    /// Creates a new empty pipeline. Must have fewer than MAX_CHANNELS channels.
+    /// Creates a new empty pipeline. Must have fewer than 17 channels.
+    ///
+    /// # Panics
+    /// Will panic if there are too many channels.
     pub fn new(input_channels: usize, output_channels: usize) -> Pipeline {
         if input_channels >= MAX_CHANNELS || output_channels >= MAX_CHANNELS {
             panic!("Pipeline has too many channels");
@@ -340,10 +416,12 @@ impl Pipeline {
         lut
     }
 
+    /// The number of input channels.
     pub fn input_channels(&self) -> usize {
         self.input_channels
     }
 
+    /// The number of output channels.
     pub fn output_channels(&self) -> usize {
         self.output_channels
     }
@@ -361,11 +439,17 @@ impl Pipeline {
         }
     }
 
+    /// Pipeline stages, in order.
+    pub fn stages(&self) -> &[Stage] {
+        &self.elements
+    }
+
+    /// Evaluates the pipeline with u16.
     pub fn eval_16(&self, input: &[u16], output: &mut [u16]) {
         (self.eval_16_fn)(input, output, self);
     }
 
-    // Evaluates the LUT with f32.
+    /// Evaluates the pipeline with floats.
     pub fn eval_float(&self, input: &[f32], output: &mut [f32]) {
         (self.eval_float_fn)(input, output, self);
     }
@@ -380,7 +464,7 @@ impl Pipeline {
         self.update_channels();
     }
 
-    /// Concatenate two LUT into a new single one
+    /// Concatenates two LUT into a new single one
     pub(crate) fn concat(&mut self, other: &Pipeline) {
         // If both LUTS does not have elements, we need to inherit
         // the number of channels

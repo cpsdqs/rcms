@@ -1,4 +1,4 @@
-use lut::Pipeline;
+use pipe::Pipeline;
 use transform_tmp::TransformFlags;
 use {Intent, PixelFormat};
 
