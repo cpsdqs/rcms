@@ -8,36 +8,44 @@ extern crate libc;
 extern crate time;
 #[macro_use]
 extern crate bitflags;
-
+extern crate byteorder;
 #[macro_use]
-mod macros;
-mod alpha;
+extern crate enum_primitive_derive;
+
+// #[macro_use]
+// mod macros; // TODO: remove
+// mod alpha; // TODO: update or remove
 mod convert;
 pub mod gamma;
 mod gamut;
 mod half;
 mod internal;
-pub mod pipe;
 mod mlu;
 mod named;
 mod op;
-mod optimization;
-mod pack;
+// mod optimization;
+// mod pack; // TODO: remove
 pub mod pcs;
+pub mod pipe;
 pub mod pixel_format;
 mod plugin;
 mod profile;
+mod profile_io;
 mod sampling;
 pub mod transform;
-mod transform_tmp;
+// mod transform_tmp; // TODO: remove
+mod types;
 mod virtuals;
 pub mod white_point;
 
-pub use mlu::MLU;
 pub use gamma::ToneCurve;
+pub use mlu::MLU;
 pub use op::ScalarOp;
 pub use profile::Profile;
+pub use profile_io::DeserError;
 pub use transform::Transform;
+
+use cgmath::num_traits;
 
 #[cfg(test)]
 mod tests;
@@ -47,7 +55,7 @@ type PixelFormat = u32;
 
 /// Rendering intents.
 #[repr(u32)]
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Primitive)]
 pub enum Intent {
     // ICC intents
     Perceptual = 0,
@@ -65,7 +73,7 @@ pub enum Intent {
 }
 
 /// ICC color spaces.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Primitive)]
 pub enum ColorSpace {
     /// `XYZ `
     XYZ = 0x58595a20,
@@ -232,7 +240,7 @@ pub enum PixelType {
 /// Pixel types.
 /// Base ICC tag definitions.
 #[repr(u32)]
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Primitive)]
 pub enum ICCTag {
     /// `A2B0`
     AToB0 = 0x41324230,
@@ -375,9 +383,87 @@ pub enum ICCTag {
      * RedMatrixColumnTag = 0x7258595A, // 'rXYZ' */
 }
 
+/// Base ICC type definitions
+#[repr(u32)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Primitive)]
+pub enum ICCTagType {
+    /// 'chrm'
+    Chromaticity = 0x6368726D,
+    /// 'clro'
+    ColorantOrder = 0x636C726F,
+    /// 'clrt'
+    ColorantTable = 0x636C7274,
+    /// 'crdi'
+    CrdInfo = 0x63726469,
+    /// 'curv'
+    Curve = 0x63757276,
+    /// 'data'
+    Data = 0x64617461,
+    /// 'dict'
+    Dict = 0x64696374,
+    /// 'dtim'
+    DateTime = 0x6474696D,
+    /// 'devs'
+    DeviceSettings = 0x64657673,
+    /// 'mft2'
+    Lut16 = 0x6d667432,
+    /// 'mft1'
+    Lut8 = 0x6d667431,
+    /// 'mAB '
+    LutAToB = 0x6d414220,
+    /// 'mBA '
+    LutBToA = 0x6d424120,
+    /// 'meas'
+    Measurement = 0x6D656173,
+    /// 'mluc'
+    MLU = 0x6D6C7563,
+    /// 'mpet'
+    MultiProcessElement = 0x6D706574,
+    /// 'ncol' -- DEPRECATED!
+    NamedColor = 0x6E636f6C,
+    /// 'ncl2'
+    NamedColor2 = 0x6E636C32,
+    /// 'para'
+    ParametricCurve = 0x70617261,
+    /// 'pseq'
+    ProfileSequenceDesc = 0x70736571,
+    /// 'psid'
+    ProfileSequenceId = 0x70736964,
+    /// 'rcs2'
+    ResponseCurveSet16 = 0x72637332,
+    /// 'sf32'
+    S15Fixed16Array = 0x73663332,
+    /// 'scrn'
+    Screening = 0x7363726E,
+    /// 'sig '
+    Signature = 0x73696720,
+    /// 'text'
+    Text = 0x74657874,
+    /// 'desc'
+    TextDescription = 0x64657363,
+    /// 'uf32'
+    U16Fixed16Array = 0x75663332,
+    /// 'bfd '
+    UcrBg = 0x62666420,
+    /// 'ui16'
+    UInt16Array = 0x75693136,
+    /// 'ui32'
+    UInt32Array = 0x75693332,
+    /// 'ui64'
+    UInt64Array = 0x75693634,
+    /// 'ui08'
+    UInt8Array = 0x75693038,
+    /// 'vcgt'
+    Vcgt = 0x76636774,
+    /// 'view'
+    ViewingConditions = 0x76696577,
+    /// 'XYZ '
+    XYZ = 0x58595A20,
+}
+
 /// ICC profile classes.
 #[repr(u32)]
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Primitive)]
 pub enum ProfileClass {
     /// `scnr`
     Input = 0x73636E72,
@@ -442,6 +528,7 @@ pub struct CIELCh {
     pub h: f64,
 }
 
+/// ?
 #[derive(Debug, Clone, Copy, PartialEq)]
 #[allow(non_snake_case)]
 pub struct JCh {
@@ -468,7 +555,7 @@ pub struct CIExyYTriple {
 
 /// ICC Technology tag.
 #[repr(u32)]
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Primitive)]
 pub enum Technology {
     /// `dcam`
     DigitalCamera = 0x6463616D,

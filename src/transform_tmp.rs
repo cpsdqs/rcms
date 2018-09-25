@@ -2,7 +2,6 @@
 
 use alpha::handle_extra_channels;
 use convert::link_profiles;
-use pipe::Pipeline;
 use mlu::MLU;
 use named::NamedColor;
 use optimization::optimize_pipeline;
@@ -11,6 +10,7 @@ use pack::{
     PACK_FLAGS_FLOAT,
 };
 use pcs::lcms_color_space;
+use pipe::Pipeline;
 use profile::Profile;
 use std::fmt;
 use white_point::D50;
@@ -49,43 +49,6 @@ struct SeqItem {
 }
 
 type TransformFn = unsafe fn(&Transform, *const (), *mut (), usize, usize, Stride);
-
-bitflags! {
-    pub struct TransformFlags: u32 {
-        const NOCACHE =                  0x0040;    // Inhibit 1-pixel cache
-        const NOOPTIMIZE =               0x0100;    // Inhibit optimizations
-        const NULLTRANSFORM =            0x0200;    // Don't transform anyway
-
-        /// Proofing flags
-        const GAMUTCHECK =               0x1000;    // Out of Gamut alarm
-        const SOFTPROOFING =             0x4000;    // Do softproofing
-
-        /// Misc
-        const BLACKPOINTCOMPENSATION =   0x2000;
-        const NOWHITEONWHITEFIXUP =      0x0004;    // Don't fix scum dot
-        const HIGHRESPRECALC =           0x0400;    // Use more memory to give better accurancy
-        const LOWRESPRECALC =            0x0800;    // Use less memory to minimize resources
-
-        /// For devicelink creation
-        const F8BITS_DEVICELINK =         0x0008;   // Create 8 bits devicelinks
-        const GUESSDEVICECLASS =         0x0020;   // Guess device class (for transform2devicelink)
-        const KEEP_SEQUENCE =            0x0080;   // Keep profile sequence for devicelink creation
-
-        /// Specific to a particular optimizations
-        const FORCE_CLUT =               0x0002;    // Force CLUT optimization
-        const CLUT_POST_LINEARIZATION =  0x0001;    // create postlinearization tables if possible
-        const CLUT_PRE_LINEARIZATION =   0x0010;    // create prelinearization tables if possible
-
-        /// Specific to unbounded mode
-        const NONEGATIVES =              0x8000;    // Prevent negative numbers in floating point transforms
-
-        /// Copy alpha channels when transforming
-        const COPY_ALPHA =               0x04000000; // Alpha channels are copied on cmsDoTransform()
-
-        /// Internal
-        const __CAN_CHANGE_FORMATTER =     0x02000000;
-    }
-}
 
 #[derive(Clone)]
 pub struct Transform {

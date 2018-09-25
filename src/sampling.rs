@@ -1,7 +1,6 @@
 // TODO
 
 use cgmath::{Matrix3, Vector3};
-use pack::{formatter_for_color_space_of_profile};
 use pcs::{end_points_by_space, lab_to_xyz, xyz_to_lab};
 use pixel_format::{Lab, PixelFormat};
 use profile::{Profile, USED_AS_INPUT, USED_AS_OUTPUT};
@@ -48,7 +47,7 @@ fn black_point_as_darker_colorant(
     }
 
     // Create a formatter which has n channels and floating point
-    let dw_format = formatter_for_color_space_of_profile(profile, 2, false);
+    let profile_format = profile.color_space.pixel_format::<u16>()?;
 
     // Try to get black by using black colorant
     let space = profile.color_space;
@@ -59,7 +58,8 @@ fn black_point_as_darker_colorant(
         None => return Err("No color space end points".into()),
     };
 
-    if channels.len() as u32 != t_channels!(dw_format) {
+    // TODO: check if this isn’t supposed to be total_channels
+    if channels.len() != profile_format.channels {
         return Err("End point channel count doesn’t match profile".into());
     }
 
@@ -74,7 +74,7 @@ fn black_point_as_darker_colorant(
         profile,
         &h_lab,
         intent,
-        profile.color_space.pixel_format::<u16>()?,
+        profile_format,
         Lab::<f64>::dyn(),
     )?;
 

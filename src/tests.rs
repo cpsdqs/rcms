@@ -82,3 +82,31 @@ fn aces_cg_srgb_round_trip() {
     assert_approx_eq_slices!(srgb_px, [0.87143475, 0.22537376, 0.89735174], 0.000001);
     assert_approx_eq_slices!(aces_px, aces_px_2, 0.000001);
 }
+
+#[test]
+fn deser_testbed() {
+    use std::io::Cursor;
+
+    const TEST1: &[u8] = include_bytes!("../lcms-testbed/test1.icc");
+    const TEST2: &[u8] = include_bytes!("../lcms-testbed/test2.icc");
+    const TEST3: &[u8] = include_bytes!("../lcms-testbed/test3.icc");
+    const TEST4: &[u8] = include_bytes!("../lcms-testbed/test4.icc");
+    const TEST5: &[u8] = include_bytes!("../lcms-testbed/test5.icc");
+    const BAD: &[u8] = include_bytes!("../lcms-testbed/bad.icc");
+    const TOO_SMALL: &[u8] = include_bytes!("../lcms-testbed/toosmall.icc");
+
+    let test1 = Profile::deser(&mut Cursor::new(TEST1)).unwrap();
+    println!("Test1: {:?}", test1);
+    let test2 = Profile::deser(&mut Cursor::new(TEST2)).unwrap();
+    println!("Test2: {:?}", test2);
+    let test3 = Profile::deser(&mut Cursor::new(TEST3)).unwrap();
+    println!("Test3: {:?}", test3);
+    let test4 = Profile::deser(&mut Cursor::new(TEST4)).unwrap();
+    println!("Test4: {:?}", test4);
+    let test5 = Profile::deser(&mut Cursor::new(TEST5)).unwrap();
+    println!("Test5: {:?}", test5);
+
+    assert!(Profile::deser(&mut Cursor::new(BAD)).is_err());
+    assert!(Profile::deser(&mut Cursor::new(TOO_SMALL)).is_err());
+    assert!(Profile::deser(&mut Cursor::new(&[])).is_err());
+}

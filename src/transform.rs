@@ -53,7 +53,6 @@ use pixel_format::{DynPixelFormat, PixelFormat, MAX_CHANNELS};
 use profile::Profile;
 use std::marker::PhantomData;
 use std::{fmt, slice};
-use transform_tmp::TransformFlags;
 use {ColorSpace, Intent, ProfileClass};
 
 type DynTransformFn = fn(
@@ -63,6 +62,43 @@ type DynTransformFn = fn(
     input: &[u8],
     output: &mut [u8],
 );
+
+bitflags! {
+    pub struct TransformFlags: u32 {
+        const NOCACHE =                  0x0040;    // Inhibit 1-pixel cache
+        const NOOPTIMIZE =               0x0100;    // Inhibit optimizations
+        const NULLTRANSFORM =            0x0200;    // Don't transform anyway
+
+        /// Proofing flags
+        const GAMUTCHECK =               0x1000;    // Out of Gamut alarm
+        const SOFTPROOFING =             0x4000;    // Do softproofing
+
+        /// Misc
+        const BLACKPOINTCOMPENSATION =   0x2000;
+        const NOWHITEONWHITEFIXUP =      0x0004;    // Don't fix scum dot
+        const HIGHRESPRECALC =           0x0400;    // Use more memory to give better accurancy
+        const LOWRESPRECALC =            0x0800;    // Use less memory to minimize resources
+
+        /// For devicelink creation
+        const F8BITS_DEVICELINK =         0x0008;   // Create 8 bits devicelinks
+        const GUESSDEVICECLASS =         0x0020;   // Guess device class (for transform2devicelink)
+        const KEEP_SEQUENCE =            0x0080;   // Keep profile sequence for devicelink creation
+
+        /// Specific to a particular optimizations
+        const FORCE_CLUT =               0x0002;    // Force CLUT optimization
+        const CLUT_POST_LINEARIZATION =  0x0001;    // create postlinearization tables if possible
+        const CLUT_PRE_LINEARIZATION =   0x0010;    // create prelinearization tables if possible
+
+        /// Specific to unbounded mode
+        const NONEGATIVES =              0x8000;    // Prevent negative numbers in floating point transforms
+
+        /// Copy alpha channels when transforming
+        const COPY_ALPHA =               0x04000000; // Alpha channels are copied on cmsDoTransform()
+
+        /// Internal
+        const __CAN_CHANGE_FORMATTER =     0x02000000;
+    }
+}
 
 /// A dynamic transform; unsafe but supports dynamic pixel formats.
 #[derive(Clone)]

@@ -397,7 +397,8 @@ pub(super) fn build_rgb_to_xyz_transfer_matrix(
                 coef.x * (1. - xr - yr),
                 coef.y * (1. - xg - yg),
                 coef.z * (1. - xb - yb),
-            ).into(),
+            )
+                .into(),
         ),
         white_pt,
     )

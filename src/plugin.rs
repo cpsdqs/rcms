@@ -12,4 +12,11 @@ pub fn s15fixed16_to_double(fix32: S15Fixed16) -> f64 {
     sign * floater
 }
 
+pub fn u8fixed8_to_double(i: u16) -> f64 {
+    let lsb = i & 0xFF;
+    let msb = i >> 8;
+
+    msb as f64 + (lsb as f64 / 256.)
+}
+
 // TODO

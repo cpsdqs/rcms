@@ -1,11 +1,11 @@
 //! Color conversion.
 
 use cgmath::{Matrix3, SquareMatrix, Vector3, Zero};
-use pipe::{Pipeline, Stage};
 use pcs::MAX_ENCODEABLE_XYZ;
+use pipe::{Pipeline, Stage};
 use profile::Profile;
 use sampling::{detect_black_point, detect_dest_black_point};
-use transform_tmp::TransformFlags;
+use transform::TransformFlags;
 use white_point::{
     adaptation_matrix, mat3_eval, mat3_per, temp_from_white_point, white_point_from_temp, D50,
 };

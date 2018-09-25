@@ -1,6 +1,6 @@
 //! Transform pipeline.
 
-use alpha::MAX_CHANNELS;
+use pixel_format::MAX_CHANNELS;
 use gamma::ToneCurve;
 use internal::quick_saturate_word;
 use named::NamedColorList;

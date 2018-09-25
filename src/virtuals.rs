@@ -1,8 +1,8 @@
 //! Virtual (built-in) profiles
 
 use gamma::ToneCurve;
-use pipe::{Pipeline, Stage};
 use mlu::MLU;
+use pipe::{Pipeline, Stage};
 use profile::Profile;
 use white_point::{adaptation_matrix, build_rgb_to_xyz_transfer_matrix, D50};
 use {CIExyY, CIExyYTriple, ColorSpace, ICCTag, Intent, ProfileClass, CIEXYZ};

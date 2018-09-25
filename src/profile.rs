@@ -2,10 +2,10 @@
 
 use cgmath::{Matrix, Matrix3, SquareMatrix};
 use gamma::ToneCurve;
-use pipe::{Pipeline, Stage};
 use mlu::MLU;
 use named::NamedColorList;
 use pcs::MAX_ENCODEABLE_XYZ;
+use pipe::{Pipeline, Stage};
 use std::any::Any;
 use std::collections::HashMap;
 use std::fmt;
@@ -18,6 +18,7 @@ use {CIExyYTriple, ColorSpace, ICCTag, Intent, ProfileClass, CIEXYZ};
 pub(crate) enum ProfileTagData {
     Linked(ICCTag),
     Data(Arc<Any + Send + Sync>),
+    Raw(Vec<u8>),
 }
 
 #[derive(Debug, Clone)]
@@ -33,7 +34,7 @@ pub struct Profile {
     // context: ?, something about threads?
     /// Creation time
     pub created: time::Tm,
-    version: u32,
+    pub(crate) version: u32,
 
     /// Device class.
     pub device_class: ProfileClass,
@@ -59,6 +60,8 @@ pub struct Profile {
 
     /// Creator.
     pub creator: u32,
+
+    pub(crate) profile_id: u128,
 
     // pub profile_id: ProfileID?,
     pub(crate) tags: HashMap<ICCTag, ProfileTag>,
@@ -135,6 +138,7 @@ impl Profile {
             creator: 0,
             tags: HashMap::new(),
             is_write: false,
+            profile_id: 0,
         }
     }
 
@@ -164,6 +168,7 @@ impl Profile {
                     Some(data) => Some(data.clone()),
                     None => None,
                 },
+                ProfileTagData::Raw(_) => None,
             },
             None => None,
         }
@@ -181,6 +186,26 @@ impl Profile {
             ProfileTag {
                 save_as_raw: false,
                 data: ProfileTagData::Data(Arc::new(data)),
+            },
+        );
+    }
+
+    pub(crate) fn insert_tag_raw(&mut self, sig: ICCTag, data: Arc<Any + Send + Sync>) {
+        self.tags.insert(
+            sig,
+            ProfileTag {
+                save_as_raw: false,
+                data: ProfileTagData::Data(data),
+            },
+        );
+    }
+
+    pub(crate) fn insert_tag_raw_data(&mut self, sig: ICCTag, buf: Vec<u8>) {
+        self.tags.insert(
+            sig,
+            ProfileTag {
+                save_as_raw: false,
+                data: ProfileTagData::Raw(buf),
             },
         );
     }
@@ -210,27 +235,38 @@ impl Profile {
         }
     }
 
-    // Chromatic adaptation matrix. Fix some issues as well.
+    /// Returns the chromatic adaptation matrix. Fixes some issues as well.
     pub fn chad(&self) -> Matrix3<f64> {
         match self.read_tag_clone(ICCTag::ChromaticAdaptation) {
-            Some(tag) => tag,
-            None => {
-                if self.version() < 4. && self.device_class == ProfileClass::Display {
-                    match self.read_tag_clone(ICCTag::MediaWhitePoint) {
-                        Some(wp) => match adaptation_matrix(None, wp, D50) {
-                            Some(mat) => mat,
-                            None => Matrix3::identity(),
-                        },
-                        None => Matrix3::identity(),
-                    }
-                } else {
-                    Matrix3::identity()
-                }
+            Some(tag) => return tag,
+            None => ()
+        }
+
+        // also support Vec<f64>
+        match self.read_tag_clone::<Vec<f64>>(ICCTag::ChromaticAdaptation) {
+            Some(ref tag) if tag.len() == 9 => {
+                let mut mat_array = [0.; 9];
+                mat_array.copy_from_slice(&tag);
+                let mat: &Matrix3<_> = (&mat_array).into();
+                return *mat;
+            },
+            _ => ()
+        }
+
+        if self.version() < 4. && self.device_class == ProfileClass::Display {
+            match self.read_tag_clone(ICCTag::MediaWhitePoint) {
+                Some(wp) => match adaptation_matrix(None, wp, D50) {
+                    Some(mat) => mat,
+                    None => Matrix3::identity(),
+                },
+                None => Matrix3::identity(),
             }
+        } else {
+            Matrix3::identity()
         }
     }
 
-    // Returns true if the profile is implemented as matrix-shaper.
+    /// Returns true if the profile is implemented as matrix-shaper.
     pub(crate) fn is_matrix_shaper(&self) -> bool {
         match self.color_space {
             ColorSpace::Gray => self.has_tag(ICCTag::GrayTRC),
@@ -752,18 +788,24 @@ impl fmt::Debug for Profile {
                             }
                         }
                         ProfileTagData::Linked(key) => write!(f, "(-> {:?})", key)?,
+                        ProfileTagData::Raw(ref buf) => {
+                            write!(f, "<raw blob of size {}>", buf.len())?
+                        }
                     }
                 }
             }
             match k {
-                ICCTag::ProfileDescription => def_tag!(MLU),
-                ICCTag::Copyright => def_tag!(MLU),
+                | ICCTag::ProfileDescription
+                | ICCTag::Copyright
+                | ICCTag::DeviceModelDesc
+                | ICCTag::DeviceMfgDesc => def_tag!(MLU),
                 ICCTag::MediaWhitePoint => def_tag!(CIEXYZ),
-                ICCTag::ChromaticAdaptation => def_tag!(Matrix3<f64>),
-                | ICCTag::RedColorant | ICCTag::GreenColorant | ICCTag::BlueColorant => {
+                ICCTag::MediaBlackPoint => def_tag!(CIEXYZ),
+                ICCTag::ChromaticAdaptation => def_tag!(Matrix3<f64>, Vec<f64>),
+                ICCTag::RedColorant | ICCTag::GreenColorant | ICCTag::BlueColorant => {
                     def_tag!(CIEXYZ)
                 }
-                | ICCTag::RedTRC | ICCTag::GreenTRC | ICCTag::BlueTRC | ICCTag::GrayTRC => {
+                ICCTag::RedTRC | ICCTag::GreenTRC | ICCTag::BlueTRC | ICCTag::GrayTRC => {
                     def_tag!(ToneCurve)
                 }
                 ICCTag::Chromaticity => def_tag!(CIExyYTriple),
