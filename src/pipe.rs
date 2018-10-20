@@ -4,7 +4,7 @@ use pixel_format::MAX_CHANNELS;
 use gamma::ToneCurve;
 use internal::quick_saturate_word;
 use named::NamedColorList;
-use pcs::{lab_to_xyz, xyz_to_lab, MAX_ENCODEABLE_XYZ};
+use pcs::{lab_to_xyz, xyz_to_lab, MAX_ENCODABLE_XYZ};
 use std::fmt;
 use {CIELab, CIEXYZ};
 
@@ -590,9 +590,9 @@ fn evaluate_curves(input: &[f32], output: &mut [f32], stage: &Stage) {
 fn evaluate_xyz_to_lab(input: &[f32], output: &mut [f32], _: &Stage) {
     // From 0..1.0 to XYZ
     let xyz = CIEXYZ {
-        x: input[0] as f64 * MAX_ENCODEABLE_XYZ,
-        y: input[1] as f64 * MAX_ENCODEABLE_XYZ,
-        z: input[2] as f64 * MAX_ENCODEABLE_XYZ,
+        x: input[0] as f64 * MAX_ENCODABLE_XYZ,
+        y: input[1] as f64 * MAX_ENCODABLE_XYZ,
+        z: input[2] as f64 * MAX_ENCODABLE_XYZ,
     };
 
     let lab = xyz_to_lab(None, xyz);
@@ -616,9 +616,9 @@ fn evaluate_lab_to_xyz(input: &[f32], output: &mut [f32], _: &Stage) {
     // From XYZ, range 0..19997 to 0..1.0, note that 1.99997 comes from 0xffff
     // encoded as 1.15 fixed point, so 1 + (32767.0 / 32768.0)
 
-    output[0] = (xyz.x / MAX_ENCODEABLE_XYZ) as f32;
-    output[1] = (xyz.y / MAX_ENCODEABLE_XYZ) as f32;
-    output[2] = (xyz.z / MAX_ENCODEABLE_XYZ) as f32;
+    output[0] = (xyz.x / MAX_ENCODABLE_XYZ) as f32;
+    output[1] = (xyz.y / MAX_ENCODABLE_XYZ) as f32;
+    output[2] = (xyz.z / MAX_ENCODABLE_XYZ) as f32;
 }
 
 /// Clips values smaller than zero

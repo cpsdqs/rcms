@@ -1,7 +1,7 @@
 //! Color conversion.
 
 use cgmath::{Matrix3, SquareMatrix, Vector3, Zero};
-use pcs::MAX_ENCODEABLE_XYZ;
+use pcs::MAX_ENCODABLE_XYZ;
 use pipe::{Pipeline, Stage};
 use profile::Profile;
 use sampling::{detect_black_point, detect_dest_black_point};
@@ -275,7 +275,7 @@ fn compute_conversion(
                 // y = M x'c + Off
                 // y = y'c; y' = y / c
                 // y' = (Mx'c + Off) /c = Mx' + (Off / c)
-                Ok((m, off / MAX_ENCODEABLE_XYZ))
+                Ok((m, off / MAX_ENCODABLE_XYZ))
             } else {
                 Ok((Matrix3::identity(), Vector3::zero()))
             }

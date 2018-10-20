@@ -4,7 +4,7 @@ use cgmath::{Matrix, Matrix3, SquareMatrix};
 use gamma::ToneCurve;
 use mlu::MLU;
 use named::NamedColorList;
-use pcs::MAX_ENCODEABLE_XYZ;
+use pcs::MAX_ENCODABLE_XYZ;
 use pipe::{Pipeline, Stage};
 use std::any::Any;
 use std::collections::HashMap;
@@ -113,8 +113,8 @@ const PCS_TO_DEVICE_FLOAT: [ICCTag; 4] = [
 ];
 
 // Factors to convert from 1.15 fixed point to 0..1.0 range and vice-versa
-const INP_ADJ: f64 = 1. / MAX_ENCODEABLE_XYZ; // (65536.0/(65535.0*2.0))
-const OUTP_ADJ: f64 = MAX_ENCODEABLE_XYZ; // ((2.0*65535.0)/65536.0)
+const INP_ADJ: f64 = 1. / MAX_ENCODABLE_XYZ; // (65536.0/(65535.0*2.0))
+const OUTP_ADJ: f64 = MAX_ENCODABLE_XYZ; // ((2.0*65535.0)/65536.0)
 
 // How profiles may be used
 // TODO: make this an enum

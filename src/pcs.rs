@@ -55,11 +55,11 @@ use std::f64;
 use white_point::D50;
 use {CIELCh, CIELab, CIExyY, ColorSpace, PixelType, S15Fixed16, CIEXYZ};
 
-pub const MAX_ENCODEABLE_XYZ: f64 = 1.0 + 32767.0 / 32768.0;
-const MIN_ENCODEABLE_AB2: f64 = -128.0;
-const MAX_ENCODEABLE_AB2: f64 = (65535.0 / 256.0) - 128.0;
-const MIN_ENCODEABLE_AB4: f64 = -128.0;
-const MAX_ENCODEABLE_AB4: f64 = 127.0;
+pub const MAX_ENCODABLE_XYZ: f64 = 1.0 + 32767.0 / 32768.0;
+const MIN_ENCODABLE_AB2: f64 = -128.0;
+const MAX_ENCODABLE_AB2: f64 = (65535.0 / 256.0) - 128.0;
+const MIN_ENCODABLE_AB4: f64 = -128.0;
+const MAX_ENCODABLE_AB4: f64 = 127.0;
 
 impl Into<CIExyY> for CIEXYZ {
     fn into(self) -> CIExyY {
@@ -192,7 +192,7 @@ fn clamp_l_double_v2(l: f64) -> f64 {
 }
 
 fn clamp_ab_double_v2(ab: f64) -> f64 {
-    ab.max(MIN_ENCODEABLE_AB2).min(MAX_ENCODEABLE_AB2)
+    ab.max(MIN_ENCODABLE_AB2).min(MAX_ENCODABLE_AB2)
 }
 
 pub fn float_to_lab_encoded_v2(f_lab: CIELab) -> [u16; 3] {
@@ -210,7 +210,7 @@ fn clamp_l_double_v4(l: f64) -> f64 {
 }
 
 fn clamp_ab_double_v4(ab: f64) -> f64 {
-    ab.max(MIN_ENCODEABLE_AB4).min(MAX_ENCODEABLE_AB4)
+    ab.max(MIN_ENCODABLE_AB4).min(MAX_ENCODABLE_AB4)
 }
 
 fn l_to_fix4(l: f64) -> u16 {
@@ -292,9 +292,9 @@ pub fn float_to_xyz_encoded(f_xyz: CIEXYZ) -> [u16; 3] {
     }
 
     [
-        xyz_to_fix(xyz.x.max(0.).min(MAX_ENCODEABLE_XYZ)),
-        xyz_to_fix(xyz.y.max(0.).min(MAX_ENCODEABLE_XYZ)),
-        xyz_to_fix(xyz.z.max(0.).min(MAX_ENCODEABLE_XYZ)),
+        xyz_to_fix(xyz.x.max(0.).min(MAX_ENCODABLE_XYZ)),
+        xyz_to_fix(xyz.y.max(0.).min(MAX_ENCODABLE_XYZ)),
+        xyz_to_fix(xyz.z.max(0.).min(MAX_ENCODABLE_XYZ)),
     ]
 }
 

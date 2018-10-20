@@ -280,10 +280,16 @@ impl ToneCurve {
 
                 if segment.0.p_type == 0 {
                     // segment is sampled
-                    let _x =
-                        (x as f32 - segment.0.domain.0) / (segment.0.domain.1 - segment.0.domain.0);
+                    let x = (x as f32 - segment.0.domain.0) / (segment.0.domain.1 - segment.0.domain.0);
                     // TODO: interpolation
-                    unimplemented!()
+                    // TEMP implementation
+                    let table_len = segment.0.sampled_points.len();
+                    let lower = ((x * table_len as f32).floor() as usize).max(0).min(table_len - 1);
+                    let upper = ((x * table_len as f32).ceil() as usize).max(0).min(table_len - 1);
+                    let a = segment.0.sampled_points[lower] as f64;
+                    let b = segment.0.sampled_points[upper] as f64;
+                    let p = x as f64 - lower as f64;
+                    a + ((b - a) * p)
                 } else {
                     match segment.1 {
                         Some(ref eval) => {
@@ -303,9 +309,17 @@ impl ToneCurve {
     }
 
     /// Evaluates the tone curve at the given input value.
-    pub fn eval_16(&self, _v: u16) -> u16 {
+    pub fn eval_16(&self, v: u16) -> u16 {
         // TODO
-        unimplemented!()
+        // TEMP implementation
+        let x = v as f32 / 65535.;
+        let table_len = self.table16.len();
+        let lower = ((x * table_len as f32).floor() as usize).max(0).min(table_len - 1);
+        let upper = ((x * table_len as f32).ceil() as usize).max(0).min(table_len - 1);
+        let a = self.table16[lower] as f32;
+        let b = self.table16[upper] as f32;
+        let p = x - lower as f32;
+        (a + ((b - a) * p)) as u16
     }
 
     /// Evaluates the tone curve at the given input value using floats.
@@ -328,7 +342,7 @@ impl ToneCurve {
 
     /// Reverses the curve, either analytically (if possible) or creating a table with the given
     /// number of samples.
-    pub fn reverse_with_samples(&self, _samples: u32) -> Result<ToneCurve, String> {
+    pub fn reverse_with_samples(&self, samples: usize) -> Result<ToneCurve, String> {
         // Try to reverse it analytically whatever possible
         if self.segments.len() == 1
             && self.segments[0].0.p_type > 0
@@ -381,7 +395,12 @@ impl ToneCurve {
             out ->Table16[i] = _cmsQuickSaturateWord(a* y + b);
         } */
 
-        unimplemented!()
+        let mut table = Vec::with_capacity(samples);
+        // TEMP implementation
+        for i in 0..samples {
+            table.push(quick_saturate_word(self.eval_float(i as f32 / 65535.) as f64));
+        }
+        Self::new_table(table.into_iter().rev().collect())
     }
 }
 

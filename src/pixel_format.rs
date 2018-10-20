@@ -7,6 +7,8 @@ use std::mem;
 use std::sync::Arc;
 use ColorSpace;
 
+// FIXME: static conversion fns are invalid because DynPixelFormats are mutable
+
 /// Maximum number of channels per pixel.
 pub const MAX_CHANNELS: usize = 16;
 
