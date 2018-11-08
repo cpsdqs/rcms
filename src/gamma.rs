@@ -288,7 +288,10 @@ impl ToneCurve {
                     let upper = ((x * table_len as f32).ceil() as usize).max(0).min(table_len - 1);
                     let a = segment.0.sampled_points[lower] as f64;
                     let b = segment.0.sampled_points[upper] as f64;
-                    let p = x as f64 - lower as f64;
+                    let mut p = x as f64 - lower as f64 / (upper as f64 - lower as f64);
+                    if !p.is_finite() {
+                        p = 0.;
+                    }
                     a + ((b - a) * p)
                 } else {
                     match segment.1 {
@@ -318,7 +321,10 @@ impl ToneCurve {
         let upper = ((x * table_len as f32).ceil() as usize).max(0).min(table_len - 1);
         let a = self.table16[lower] as f32;
         let b = self.table16[upper] as f32;
-        let p = x - lower as f32;
+        let mut p = (x * table_len as f32 - lower as f32) / (upper as f32 - lower as f32);
+        if !p.is_finite() {
+            p = 0.;
+        }
         (a + ((b - a) * p)) as u16
     }
 
@@ -335,9 +341,13 @@ impl ToneCurve {
         }
     }
 
-    /// Reverses the curve with 4096 samples. (see `reverse_with_samples`)
+    /// Reverses the curve with at most 4096 samples. (see `reverse_with_samples`)
     pub fn reverse(&self) -> Result<ToneCurve, String> {
-        self.reverse_with_samples(4096)
+        self.reverse_with_samples(if self.segments.is_empty() {
+            self.table16.len().min(4096)
+        } else {
+            4096
+        })
     }
 
     /// Reverses the curve, either analytically (if possible) or creating a table with the given
@@ -398,9 +408,9 @@ impl ToneCurve {
         let mut table = Vec::with_capacity(samples);
         // TEMP implementation
         for i in 0..samples {
-            table.push(quick_saturate_word(self.eval_float(i as f32 / 65535.) as f64));
+            table.push(1. - self.eval_float(i as f32 / samples as f32));
         }
-        Self::new_table(table.into_iter().rev().collect())
+        Self::new_tabulated(table.into_iter().rev().collect())
     }
 }
 
