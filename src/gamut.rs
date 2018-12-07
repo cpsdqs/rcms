@@ -1,6 +1,6 @@
-use pipe::Pipeline;
-use profile::Profile;
-use Intent;
+use crate::pipe::Pipeline;
+use crate::profile::Profile;
+use crate::Intent;
 
 impl Pipeline {
     pub(crate) fn new_gamut_check(

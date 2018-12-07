@@ -1,7 +1,7 @@
 //! White points.
 
+use crate::{CIExyY, CIExyYTriple, CIEXYZ};
 use cgmath::{Matrix, Matrix3, SquareMatrix, Vector3};
-use {CIExyY, CIExyYTriple, CIEXYZ};
 
 /// D50 — widely used
 pub const D50: CIEXYZ = CIEXYZ {

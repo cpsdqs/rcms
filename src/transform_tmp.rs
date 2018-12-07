@@ -1,20 +1,20 @@
 //! Transformation stuff (legacy)
 
-use alpha::handle_extra_channels;
-use convert::link_profiles;
-use mlu::MLU;
-use named::NamedColor;
-use optimization::optimize_pipeline;
-use pack::{
+use crate::alpha::handle_extra_channels;
+use crate::convert::link_profiles;
+use crate::mlu::MLU;
+use crate::named::NamedColor;
+use crate::optimization::optimize_pipeline;
+use crate::pack::{
     formatter, formatter_is_float, Accum, Formatter, FormatterDir, PACK_FLAGS_16BITS,
     PACK_FLAGS_FLOAT,
 };
-use pcs::lcms_color_space;
-use pipe::Pipeline;
-use profile::Profile;
+use crate::pcs::lcms_color_space;
+use crate::pipe::Pipeline;
+use crate::profile::Profile;
 use std::fmt;
-use white_point::D50;
-use {ColorSpace, ICCTag, Intent, PixelFormat, PixelType, ProfileClass, Technology, CIEXYZ};
+use crate::white_point::D50;
+use crate::{ColorSpace, ICCTag, Intent, PixelFormat, PixelType, ProfileClass, Technology, CIEXYZ};
 
 const DEFAULT_OBSERVER_ADAPTATION_STATE: f64 = 1.;
 

@@ -1,12 +1,12 @@
 //! Transform pipeline.
 
-use pixel_format::MAX_CHANNELS;
-use gamma::ToneCurve;
-use internal::quick_saturate_word;
-use named::NamedColorList;
-use pcs::{lab_to_xyz, xyz_to_lab, MAX_ENCODABLE_XYZ};
+use crate::gamma::ToneCurve;
+use crate::internal::quick_saturate_word;
+use crate::named::NamedColorList;
+use crate::pcs::{lab_to_xyz, xyz_to_lab, MAX_ENCODABLE_XYZ};
+use crate::pixel_format::MAX_CHANNELS;
+use crate::{CIELab, CIEXYZ};
 use std::fmt;
-use {CIELab, CIEXYZ};
 
 type StageEvalFn = fn(&[f32], &mut [f32], &Stage);
 

@@ -1,11 +1,11 @@
 //! Pixel format encoding and decoding.
 
-use internal::quick_saturate_word;
+use crate::internal::quick_saturate_word;
+use crate::ColorSpace;
 use std::any::Any;
 use std::marker::PhantomData;
 use std::mem;
 use std::sync::Arc;
-use ColorSpace;
 
 // FIXME: static conversion fns are invalid because DynPixelFormats are mutable
 
@@ -87,7 +87,7 @@ pub trait PixelFormat {
     }
 
     /// Returns a new DynPixelFormat representing this PixelFormat.
-    fn dyn() -> DynPixelFormat {
+    fn as_dyn() -> DynPixelFormat {
         DynPixelFormat {
             space: Self::SPACE,
             is_float: Self::IS_FLOAT,
@@ -537,7 +537,7 @@ impl ColorSpace {
 
 #[test]
 fn dyn_proxies_do_not_break_due_to_excessively_unsafe_code() {
-    let rgb = RGB::<f32>::dyn();
+    let rgb = RGB::<f32>::as_dyn();
     let in_buf: &[f32] = &[0.2147, 0.483, 0.647];
     let mut out_buf: [f32; 16] = [0.; 16];
     (rgb.decode_float_fn)(&rgb, in_buf as *const _ as *const (), &mut out_buf);

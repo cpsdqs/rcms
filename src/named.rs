@@ -1,4 +1,4 @@
-use pipe::{Stage, StageData, StageType};
+use crate::pipe::{Stage, StageData, StageType};
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct NamedColor {

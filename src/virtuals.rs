@@ -1,11 +1,11 @@
 //! Virtual (built-in) profiles
 
-use gamma::ToneCurve;
-use mlu::MLU;
-use pipe::{Pipeline, Stage};
-use profile::Profile;
-use white_point::{adaptation_matrix, build_rgb_to_xyz_transfer_matrix, D50};
-use {CIExyY, CIExyYTriple, ColorSpace, ICCTag, Intent, ProfileClass, CIEXYZ};
+use crate::gamma::ToneCurve;
+use crate::mlu::MLU;
+use crate::pipe::{Pipeline, Stage};
+use crate::profile::Profile;
+use crate::white_point::{adaptation_matrix, build_rgb_to_xyz_transfer_matrix, D50};
+use crate::{CIExyY, CIExyYTriple, ColorSpace, ICCTag, Intent, ProfileClass, CIEXYZ};
 
 fn set_text_tags(profile: &mut Profile, description: &str) {
     let mut desc_mlu = MLU::new();

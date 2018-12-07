@@ -1,6 +1,6 @@
-use pipe::Pipeline;
-use transform_tmp::TransformFlags;
-use {Intent, PixelFormat};
+use crate::pipe::Pipeline;
+use crate::transform_tmp::TransformFlags;
+use crate::{Intent, PixelFormat};
 
 pub fn optimize_pipeline(
     _: &Pipeline,

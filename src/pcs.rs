@@ -49,11 +49,11 @@
 //! | CIELAB (16 bit)    | a*         | -128.0 -> +127    | 0x0000 -> 0x8080 -> 0xffff |
 //! | CIELAB (16 bit)    | b*         | -128.0 -> +127    | 0x0000 -> 0x8080 -> 0xffff |
 
-use internal::quick_saturate_word;
-use plugin::s15fixed16_to_double;
+use crate::internal::quick_saturate_word;
+use crate::plugin::s15fixed16_to_double;
+use crate::white_point::D50;
+use crate::{CIELCh, CIELab, CIExyY, ColorSpace, PixelType, S15Fixed16, CIEXYZ};
 use std::f64;
-use white_point::D50;
-use {CIELCh, CIELab, CIExyY, ColorSpace, PixelType, S15Fixed16, CIEXYZ};
 
 pub const MAX_ENCODABLE_XYZ: f64 = 1.0 + 32767.0 / 32768.0;
 const MIN_ENCODABLE_AB2: f64 = -128.0;
@@ -587,7 +587,7 @@ pub(crate) fn end_points_by_space(space: ColorSpace) -> Option<(Vec<u16>, Vec<u1
 
 /// Translate from our color space to ICC representation
 pub fn icc_color_space(notation: PixelType) -> Option<ColorSpace> {
-    use ColorSpace::*;
+    use crate::ColorSpace::*;
 
     match notation {
         // also 1 in lcms
@@ -624,7 +624,7 @@ pub fn icc_color_space(notation: PixelType) -> Option<ColorSpace> {
 }
 
 pub fn lcms_color_space(profile_space: ColorSpace) -> PixelType {
-    use ColorSpace::*;
+    use crate::ColorSpace::*;
 
     match profile_space {
         Gray => PixelType::Gray,

@@ -1,13 +1,13 @@
 // TODO
 
+use crate::pcs::{end_points_by_space, lab_to_xyz, xyz_to_lab};
+use crate::pixel_format::{Lab, PixelFormat};
+use crate::profile::{Profile, USED_AS_INPUT, USED_AS_OUTPUT};
+use crate::transform::{DynTransform, Transform};
+use crate::virtuals::{create_lab2_profile_opt, create_lab4_profile_opt};
+use crate::white_point::solve_matrix;
+use crate::{CIELab, ColorSpace, Intent, ProfileClass, CIEXYZ};
 use cgmath::{Matrix3, Vector3};
-use pcs::{end_points_by_space, lab_to_xyz, xyz_to_lab};
-use pixel_format::{Lab, PixelFormat};
-use profile::{Profile, USED_AS_INPUT, USED_AS_OUTPUT};
-use transform::{DynTransform, Transform};
-use virtuals::{create_lab2_profile_opt, create_lab4_profile_opt};
-use white_point::solve_matrix;
-use {CIELab, ColorSpace, Intent, ProfileClass, CIEXYZ};
 
 const PERCEPTUAL_BLACK: CIEXYZ = CIEXYZ {
     x: 0.00336,
@@ -75,7 +75,7 @@ fn black_point_as_darker_colorant(
         &h_lab,
         intent,
         profile_format,
-        Lab::<f64>::dyn(),
+        Lab::<f64>::as_dyn(),
     )?;
 
     // Convert black to Lab

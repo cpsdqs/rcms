@@ -1,10 +1,10 @@
+use crate::profile::Profile;
+use crate::types::{decode_date_time, tag_deserializer, tag_types, ICCDateTime};
+use crate::{ColorSpace, ICCTag, ICCTagType, Intent, ProfileClass, S15Fixed16};
 use byteorder::{ByteOrder, ReadBytesExt, BE};
 use cgmath::num_traits::{FromPrimitive, ToPrimitive};
-use profile::Profile;
 use std::collections::HashMap;
 use std::{fmt, io, mem};
-use types::{decode_date_time, tag_deserializer, tag_types, ICCDateTime};
-use {ColorSpace, ICCTag, ICCTagType, Intent, ProfileClass, S15Fixed16};
 
 pub enum DeserError {
     /// Magic number mismatch.
@@ -197,29 +197,34 @@ impl Profile {
         for (tag, data) in pool_tags {
             match data {
                 TagData::Linked(target) => profile.link_tag(tag, target),
-                TagData::Data(buf) => if let Some(tag_types) = tag_types(tag) {
-                    if buf.len() < 8 {
-                        return Err(io::Error::from(io::ErrorKind::UnexpectedEof).into());
-                    }
-                    let data_type = BE::read_u32(buf);
+                TagData::Data(buf) => {
+                    if let Some(tag_types) = tag_types(tag) {
+                        if buf.len() < 8 {
+                            return Err(io::Error::from(io::ErrorKind::UnexpectedEof).into());
+                        }
+                        let data_type = BE::read_u32(buf);
 
-                    let tag_type = match tag_types.iter().find(|x| x.to_u32() == Some(data_type)) {
-                        Some(tt) => *tt,
-                        None => return Err(DeserError::UnsupportedType(data_type)),
-                    };
+                        let tag_type =
+                            match tag_types.iter().find(|x| x.to_u32() == Some(data_type)) {
+                                Some(tt) => *tt,
+                                None => return Err(DeserError::UnsupportedType(data_type)),
+                            };
 
-                    if let Some(deser_tag) = tag_deserializer(tag_type) {
-                        profile.insert_tag_raw(
-                            tag,
-                            match deser_tag(&buf[8..]) {
-                                Ok(data) => data,
-                                Err(err) => return Err(DeserError::TagError(tag, tag_type, err)),
-                            },
-                        );
-                    } else {
-                        profile.insert_tag_raw_data(tag, buf.to_vec());
+                        if let Some(deser_tag) = tag_deserializer(tag_type) {
+                            profile.insert_tag_raw(
+                                tag,
+                                match deser_tag(&buf[8..]) {
+                                    Ok(data) => data,
+                                    Err(err) => {
+                                        return Err(DeserError::TagError(tag, tag_type, err))
+                                    }
+                                },
+                            );
+                        } else {
+                            profile.insert_tag_raw_data(tag, buf.to_vec());
+                        }
                     }
-                },
+                }
             }
         }
 
@@ -301,7 +306,8 @@ fn read_header<T: io::Read>(
     profile.profile_id = unsafe {
         ProfileID {
             u32: header.profile_id,
-        }.u128
+        }
+        .u128
     };
 
     // tag directory

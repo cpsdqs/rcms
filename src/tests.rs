@@ -1,8 +1,8 @@
 use super::*;
-use gamma::ToneCurve;
-use pixel_format::RGB;
-use profile::Profile;
-use transform::Transform;
+use crate::gamma::ToneCurve;
+use crate::pixel_format::RGB;
+use crate::profile::Profile;
+use crate::transform::Transform;
 
 macro_rules! assert_approx_eq_slices {
     ($lhs:expr, $rhs:expr, $epsilon:expr) => {{
@@ -58,7 +58,8 @@ fn aces_cg_srgb_round_trip() {
             ToneCurve::new_gamma(1.).unwrap(),
             ToneCurve::new_gamma(1.).unwrap(),
         ],
-    ).unwrap();
+    )
+    .unwrap();
 
     let srgb = Profile::new_srgb();
 

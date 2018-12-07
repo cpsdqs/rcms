@@ -1,7 +1,7 @@
-use half::{float_to_half, half_to_float};
-use internal::{quick_floor_word, quick_saturate_word};
+use crate::half::{float_to_half, half_to_float};
+use crate::internal::{quick_floor_word, quick_saturate_word};
 use std::{mem, ptr};
-use transform_tmp::{Stride, Transform, TransformFlags};
+use crate::transform_tmp::{Stride, Transform, TransformFlags};
 
 /// Floors to byte, taking care of saturation.
 pub(crate) fn quick_saturate_byte(d: f64) -> u8 {

@@ -1,4 +1,4 @@
-use S15Fixed16;
+use crate::S15Fixed16;
 
 pub fn s15fixed16_to_double(fix32: S15Fixed16) -> f64 {
     let sign = fix32.signum() as f64;

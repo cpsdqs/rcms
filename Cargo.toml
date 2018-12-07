@@ -6,6 +6,7 @@ license = "MIT"
 description = "ICC color management library"
 keywords = ["color management"]
 categories = ["multimedia", "encoding"]
+edition = "2018"
 
 [dependencies]
 bitflags = "1.0"

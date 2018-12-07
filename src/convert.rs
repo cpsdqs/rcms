@@ -1,15 +1,15 @@
 //! Color conversion.
 
-use cgmath::{Matrix3, SquareMatrix, Vector3, Zero};
-use pcs::MAX_ENCODABLE_XYZ;
-use pipe::{Pipeline, Stage};
-use profile::Profile;
-use sampling::{detect_black_point, detect_dest_black_point};
-use transform::TransformFlags;
-use white_point::{
+use crate::pcs::MAX_ENCODABLE_XYZ;
+use crate::pipe::{Pipeline, Stage};
+use crate::profile::Profile;
+use crate::sampling::{detect_black_point, detect_dest_black_point};
+use crate::transform::TransformFlags;
+use crate::white_point::{
     adaptation_matrix, mat3_eval, mat3_per, temp_from_white_point, white_point_from_temp, D50,
 };
-use {ColorSpace, Intent, ProfileClass, CIEXYZ};
+use crate::{ColorSpace, Intent, ProfileClass, CIEXYZ};
+use cgmath::{Matrix3, SquareMatrix, Vector3, Zero};
 
 type IntentFn = fn(
     profiles: &[Profile],
@@ -299,9 +299,11 @@ fn add_conversion(
 
     // Handle PCS mismatches. A specialized stage is added to the LUT in such case
     match (in_pcs, out_pcs) {
-        (ColorSpace::XYZ, ColorSpace::XYZ) => if !is_empty_layer(mat, off) {
-            result.append_stage(Stage::new_matrix(3, 3, mat_as_dbl, Some(off_as_dbl)));
-        },
+        (ColorSpace::XYZ, ColorSpace::XYZ) => {
+            if !is_empty_layer(mat, off) {
+                result.append_stage(Stage::new_matrix(3, 3, mat_as_dbl, Some(off_as_dbl)));
+            }
+        }
         (ColorSpace::XYZ, ColorSpace::Lab) => {
             if !is_empty_layer(mat, off) {
                 result.append_stage(Stage::new_matrix(3, 3, mat_as_dbl, Some(off_as_dbl)));
@@ -314,11 +316,13 @@ fn add_conversion(
                 result.append_stage(Stage::new_matrix(3, 3, mat_as_dbl, Some(off_as_dbl)));
             }
         }
-        (ColorSpace::Lab, ColorSpace::Lab) => if !is_empty_layer(mat, off) {
-            result.append_stage(Stage::new_lab_to_xyz());
-            result.append_stage(Stage::new_matrix(3, 3, mat_as_dbl, Some(off_as_dbl)));
-            result.append_stage(Stage::new_xyz_to_lab());
-        },
+        (ColorSpace::Lab, ColorSpace::Lab) => {
+            if !is_empty_layer(mat, off) {
+                result.append_stage(Stage::new_lab_to_xyz());
+                result.append_stage(Stage::new_matrix(3, 3, mat_as_dbl, Some(off_as_dbl)));
+                result.append_stage(Stage::new_xyz_to_lab());
+            }
+        }
         _ => {
             // On colorspaces other than PCS, check for same space
             if in_pcs != out_pcs {
@@ -393,7 +397,7 @@ fn default_icc_intents(
             return Err("Color space mismatch".into());
         }
 
-        let mut pipeline;
+        let pipeline;
 
         // If devicelink is found, then no custom intent is allowed and we can
         // read the LUT to be applied. Settings don't apply here.

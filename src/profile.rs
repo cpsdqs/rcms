@@ -1,18 +1,18 @@
 //! Color profiles.
 
+use crate::gamma::ToneCurve;
+use crate::mlu::MLU;
+use crate::named::NamedColorList;
+use crate::pcs::MAX_ENCODABLE_XYZ;
+use crate::pipe::{Pipeline, Stage};
+use crate::white_point::{adaptation_matrix, D50};
+use crate::{CIExyYTriple, ColorSpace, ICCTag, Intent, ProfileClass, CIEXYZ};
 use cgmath::{Matrix, Matrix3, SquareMatrix};
-use gamma::ToneCurve;
-use mlu::MLU;
-use named::NamedColorList;
-use pcs::MAX_ENCODABLE_XYZ;
-use pipe::{Pipeline, Stage};
 use std::any::Any;
 use std::collections::HashMap;
 use std::fmt;
 use std::sync::Arc;
 use time;
-use white_point::{adaptation_matrix, D50};
-use {CIExyYTriple, ColorSpace, ICCTag, Intent, ProfileClass, CIEXYZ};
 
 #[derive(Debug, Clone)]
 pub(crate) enum ProfileTagData {
@@ -239,7 +239,7 @@ impl Profile {
     pub fn chad(&self) -> Matrix3<f64> {
         match self.read_tag_clone(ICCTag::ChromaticAdaptation) {
             Some(tag) => return tag,
-            None => ()
+            None => (),
         }
 
         // also support Vec<f64>
@@ -249,8 +249,8 @@ impl Profile {
                 mat_array.copy_from_slice(&tag);
                 let mat: &Matrix3<_> = (&mat_array).into();
                 return *mat;
-            },
-            _ => ()
+            }
+            _ => (),
         }
 
         if self.version() < 4. && self.device_class == ProfileClass::Display {
@@ -490,44 +490,44 @@ impl Profile {
                 unimplemented!()
             }
             /*
-            if (cmsIsTag(hProfile, tag16)) { // Is there any LUT-Based table?
+                    if (cmsIsTag(hProfile, tag16)) { // Is there any LUT-Based table?
 
-                // Check profile version and LUT type. Do the necessary adjustments if needed
+                        // Check profile version and LUT type. Do the necessary adjustments if needed
 
-                // First read the tag
-                cmsPipeline* Lut = (cmsPipeline*) cmsReadTag(hProfile, tag16);
-                if (Lut == NULL) return NULL;
+                        // First read the tag
+                        cmsPipeline* Lut = (cmsPipeline*) cmsReadTag(hProfile, tag16);
+                        if (Lut == NULL) return NULL;
 
-                // After reading it, we have info about the original type
-                OriginalType =  _cmsGetTagTrueType(hProfile, tag16);
+                        // After reading it, we have info about the original type
+                        OriginalType =  _cmsGetTagTrueType(hProfile, tag16);
 
-                // The profile owns the Lut, so we need to copy it
-                Lut = cmsPipelineDup(Lut);
-                if (Lut == NULL) return NULL;
+                        // The profile owns the Lut, so we need to copy it
+                        Lut = cmsPipelineDup(Lut);
+                        if (Lut == NULL) return NULL;
 
-                // Now it is time for a controversial stuff. I found that for 3D LUTS using
-                // Lab used as indexer space,  trilinear interpolation should be used
-                if (cmsGetPCS(hProfile) == cmsSigLabData)
-                    ChangeInterpolationToTrilinear(Lut);
+                        // Now it is time for a controversial stuff. I found that for 3D LUTS using
+                        // Lab used as indexer space,  trilinear interpolation should be used
+                        if (cmsGetPCS(hProfile) == cmsSigLabData)
+                            ChangeInterpolationToTrilinear(Lut);
 
-                // We need to adjust data only for Lab and Lut16 type
-                if (OriginalType != cmsSigLut16Type || cmsGetPCS(hProfile) != cmsSigLabData)
-                    return Lut;
+                        // We need to adjust data only for Lab and Lut16 type
+                        if (OriginalType != cmsSigLut16Type || cmsGetPCS(hProfile) != cmsSigLabData)
+                            return Lut;
 
-                // Add a matrix for conversion V4 to V2 Lab PCS
-                if (!cmsPipelineInsertStage(Lut, cmsAT_BEGIN, _cmsStageAllocLabV4ToV2(ContextID)))
-                    goto Error;
+                        // Add a matrix for conversion V4 to V2 Lab PCS
+                        if (!cmsPipelineInsertStage(Lut, cmsAT_BEGIN, _cmsStageAllocLabV4ToV2(ContextID)))
+                            goto Error;
 
-                // If the output is Lab, add also a conversion at the end
-                if (cmsGetColorSpace(hProfile) == cmsSigLabData)
-                    if (!cmsPipelineInsertStage(Lut, cmsAT_END, _cmsStageAllocLabV2ToV4(ContextID)))
-                        goto Error;
+                        // If the output is Lab, add also a conversion at the end
+                        if (cmsGetColorSpace(hProfile) == cmsSigLabData)
+                            if (!cmsPipelineInsertStage(Lut, cmsAT_END, _cmsStageAllocLabV2ToV4(ContextID)))
+                                goto Error;
 
-                return Lut;
-    Error:
-                cmsPipelineFree(Lut);
-                return NULL;
-            } */
+                        return Lut;
+            Error:
+                        cmsPipelineFree(Lut);
+                        return NULL;
+                    } */
         }
 
         // Lut not found, try to create a matrix-shaper
@@ -795,7 +795,7 @@ impl fmt::Debug for Profile {
                 }
             }
             match k {
-                | ICCTag::ProfileDescription
+                ICCTag::ProfileDescription
                 | ICCTag::Copyright
                 | ICCTag::DeviceModelDesc
                 | ICCTag::DeviceMfgDesc => def_tag!(MLU),

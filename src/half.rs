@@ -12,7 +12,8 @@ pub fn half_to_float(h: u16) -> f32 {
     unsafe {
         F32AndU32 {
             num: MANTISSA[((h & 0x3ff) + OFFSET[n as usize]) as usize] + EXPONENT[n as usize],
-        }.flt
+        }
+        .flt
     }
 }
 

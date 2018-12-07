@@ -47,13 +47,14 @@
 //! assert!(approx_eq(aces_cg_data[2], 0.0260));
 //! ```
 
-use convert::link_profiles;
-use pipe::Pipeline;
-use pixel_format::{DynPixelFormat, PixelFormat, MAX_CHANNELS};
-use profile::Profile;
+use crate::convert::link_profiles;
+use crate::pipe::Pipeline;
+use crate::pixel_format::{DynPixelFormat, PixelFormat, MAX_CHANNELS};
+use crate::profile::Profile;
+use crate::{ColorSpace, Intent, ProfileClass};
+use bitflags::*;
 use std::marker::PhantomData;
 use std::{fmt, slice};
-use {ColorSpace, Intent, ProfileClass};
 
 type DynTransformFn = fn(
     transform: &DynTransform,
@@ -261,7 +262,7 @@ impl<InFmt: PixelFormat, OutFmt: PixelFormat> Transform<InFmt, OutFmt> {
         intent: Intent,
     ) -> Result<Transform<InFmt, OutFmt>, String> {
         Ok(Transform {
-            inner: DynTransform::new(input, output, intent, InFmt::dyn(), OutFmt::dyn())?,
+            inner: DynTransform::new(input, output, intent, InFmt::as_dyn(), OutFmt::as_dyn())?,
             _phantom_in: PhantomData,
             _phantom_out: PhantomData,
         })
@@ -274,7 +275,13 @@ impl<InFmt: PixelFormat, OutFmt: PixelFormat> Transform<InFmt, OutFmt> {
         bpc: bool,
     ) -> Result<Transform<InFmt, OutFmt>, String> {
         Ok(Transform {
-            inner: DynTransform::new_multi(profiles, intent, bpc, InFmt::dyn(), OutFmt::dyn())?,
+            inner: DynTransform::new_multi(
+                profiles,
+                intent,
+                bpc,
+                InFmt::as_dyn(),
+                OutFmt::as_dyn(),
+            )?,
             _phantom_in: PhantomData,
             _phantom_out: PhantomData,
         })
@@ -295,8 +302,8 @@ impl<InFmt: PixelFormat, OutFmt: PixelFormat> Transform<InFmt, OutFmt> {
                 bpc,
                 intents,
                 adaptation_states,
-                InFmt::dyn(),
-                OutFmt::dyn(),
+                InFmt::as_dyn(),
+                OutFmt::as_dyn(),
             )?,
             _phantom_in: PhantomData,
             _phantom_out: PhantomData,

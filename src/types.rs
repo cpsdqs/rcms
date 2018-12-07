@@ -1,15 +1,15 @@
+use crate::gamma::ToneCurve;
+use crate::mlu::{MLU, NO_COUNTRY, NO_LANGUAGE};
+use crate::pixel_format::MAX_CHANNELS;
+use crate::plugin::{s15fixed16_to_double, u8fixed8_to_double};
+use crate::{CIExyY, CIExyYTriple, ICCTag, S15Fixed16, CIEXYZ};
 use byteorder::{ByteOrder, ReadBytesExt, BE};
-use gamma::ToneCurve;
-use mlu::{MLU, NO_COUNTRY, NO_LANGUAGE};
-use pixel_format::MAX_CHANNELS;
-use plugin::{s15fixed16_to_double, u8fixed8_to_double};
 use std::any::Any;
 use std::ffi::CStr;
 use std::io::{self, Read, Seek};
-use std::sync::Arc;
 use std::mem;
+use std::sync::Arc;
 use time;
-use {CIExyY, CIExyYTriple, ICCTag, S15Fixed16, CIEXYZ};
 
 pub type TypeDeserFn = fn(buf: &[u8]) -> io::Result<Arc<Any + Send + Sync>>;
 
@@ -408,7 +408,7 @@ fn mlu_deser(buf: &[u8]) -> io::Result<Arc<Any + Send + Sync>> {
 
 // TODO: types.c:1584
 
-use ICCTagType as Type;
+use crate::ICCTagType as Type;
 const TAGS: &[(ICCTag, &[Type])] = &[
     (ICCTag::AToB0, &[Type::Lut16, Type::LutAToB, Type::Lut8]),
     (ICCTag::AToB1, &[Type::Lut16, Type::LutAToB, Type::Lut8]),

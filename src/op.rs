@@ -137,35 +137,38 @@ impl ScalarOp {
     }
 
     fn glsl(&self, x: &str, y: &str, ty: &str, level: u8) -> String {
-        indent(level) + &match *self {
-            ScalarOp::Noop => "\n".into(),
-            ScalarOp::Const(v) => format!("{} = {};\n", x, format_decimal(v)),
-            ScalarOp::Dup => format!("{} = {};\n", y, x),
-            ScalarOp::Swap => format!("{{{0} _swap = {1}; {1} = {2}; {2} = __swap;}}\n", ty, x, y),
-            ScalarOp::IfLtElse(v, ref a, ref b) => format!(
-                "if ({} < {}) {{\n{}{}}} else {{\n{}{3}}}\n",
-                x,
-                format_decimal(v),
-                ScalarOp::sub_compile(a, x, y, ty, level + 1),
-                indent(level),
-                ScalarOp::sub_compile(b, x, y, ty, level + 1)
-            ),
-            ScalarOp::IfLeqElse(v, ref a, ref b) => format!(
-                "if ({} <= {}) {{\n{}{}}} else {{\n{}{3}}}\n",
-                x,
-                format_decimal(v),
-                ScalarOp::sub_compile(a, x, y, ty, level + 1),
-                indent(level),
-                ScalarOp::sub_compile(b, x, y, ty, level + 1)
-            ),
-            ScalarOp::Pow(v) => format!("{} = pow({0}, {});\n", x, format_decimal(v)),
-            ScalarOp::Exp(v) => format!("{} = pow({}, {0});\n", x, format_decimal(v)),
-            ScalarOp::Add(v) => format!("{} += {};\n", x, format_decimal(v)),
-            ScalarOp::Sub(v) => format!("{} -= {};\n", x, format_decimal(v)),
-            ScalarOp::Mul(v) => format!("{} *= {};\n", x, format_decimal(v)),
-            ScalarOp::Div(v) => format!("{} /= {};\n", x, format_decimal(v)),
-            ScalarOp::Log10 => format!("{} = log({0}) / {};\n", x, 10f64.ln()),
-        }
+        indent(level)
+            + &match *self {
+                ScalarOp::Noop => "\n".into(),
+                ScalarOp::Const(v) => format!("{} = {};\n", x, format_decimal(v)),
+                ScalarOp::Dup => format!("{} = {};\n", y, x),
+                ScalarOp::Swap => {
+                    format!("{{{0} _swap = {1}; {1} = {2}; {2} = __swap;}}\n", ty, x, y)
+                }
+                ScalarOp::IfLtElse(v, ref a, ref b) => format!(
+                    "if ({} < {}) {{\n{}{}}} else {{\n{}{3}}}\n",
+                    x,
+                    format_decimal(v),
+                    ScalarOp::sub_compile(a, x, y, ty, level + 1),
+                    indent(level),
+                    ScalarOp::sub_compile(b, x, y, ty, level + 1)
+                ),
+                ScalarOp::IfLeqElse(v, ref a, ref b) => format!(
+                    "if ({} <= {}) {{\n{}{}}} else {{\n{}{3}}}\n",
+                    x,
+                    format_decimal(v),
+                    ScalarOp::sub_compile(a, x, y, ty, level + 1),
+                    indent(level),
+                    ScalarOp::sub_compile(b, x, y, ty, level + 1)
+                ),
+                ScalarOp::Pow(v) => format!("{} = pow({0}, {});\n", x, format_decimal(v)),
+                ScalarOp::Exp(v) => format!("{} = pow({}, {0});\n", x, format_decimal(v)),
+                ScalarOp::Add(v) => format!("{} += {};\n", x, format_decimal(v)),
+                ScalarOp::Sub(v) => format!("{} -= {};\n", x, format_decimal(v)),
+                ScalarOp::Mul(v) => format!("{} *= {};\n", x, format_decimal(v)),
+                ScalarOp::Div(v) => format!("{} /= {};\n", x, format_decimal(v)),
+                ScalarOp::Log10 => format!("{} = log({0}) / {};\n", x, 10f64.ln()),
+            }
     }
 
     fn sub_compile(ops: &[ScalarOp], x: &str, y: &str, ty: &str, level: u8) -> String {

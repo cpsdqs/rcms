@@ -11,8 +11,8 @@
 //! function. In the case of reverse evaluation, the evaluator will be called with the type id as a
 //! negative value, and a sampled version of the reversed curve will be built.</s>
 
-use internal::{quick_saturate_word, MATRIX_DET_TOLERANCE};
-use op::ScalarOp;
+use crate::internal::{quick_saturate_word, MATRIX_DET_TOLERANCE};
+use crate::op::ScalarOp;
 use std::cmp::Ordering;
 use std::sync::Arc;
 use std::{f32, f64, fmt};
@@ -280,12 +280,17 @@ impl ToneCurve {
 
                 if segment.0.p_type == 0 {
                     // segment is sampled
-                    let x = (x as f32 - segment.0.domain.0) / (segment.0.domain.1 - segment.0.domain.0);
+                    let x =
+                        (x as f32 - segment.0.domain.0) / (segment.0.domain.1 - segment.0.domain.0);
                     // TODO: interpolation
                     // TEMP implementation
                     let table_len = segment.0.sampled_points.len();
-                    let lower = ((x * table_len as f32).floor() as usize).max(0).min(table_len - 1);
-                    let upper = ((x * table_len as f32).ceil() as usize).max(0).min(table_len - 1);
+                    let lower = ((x * table_len as f32).floor() as usize)
+                        .max(0)
+                        .min(table_len - 1);
+                    let upper = ((x * table_len as f32).ceil() as usize)
+                        .max(0)
+                        .min(table_len - 1);
                     let a = segment.0.sampled_points[lower] as f64;
                     let b = segment.0.sampled_points[upper] as f64;
                     let mut p = x as f64 - lower as f64 / (upper as f64 - lower as f64);
@@ -317,8 +322,12 @@ impl ToneCurve {
         // TEMP implementation
         let x = v as f32 / 65535.;
         let table_len = self.table16.len();
-        let lower = ((x * table_len as f32).floor() as usize).max(0).min(table_len - 1);
-        let upper = ((x * table_len as f32).ceil() as usize).max(0).min(table_len - 1);
+        let lower = ((x * table_len as f32).floor() as usize)
+            .max(0)
+            .min(table_len - 1);
+        let upper = ((x * table_len as f32).ceil() as usize)
+            .max(0)
+            .min(table_len - 1);
         let a = self.table16[lower] as f32;
         let b = self.table16[upper] as f32;
         let mut p = (x * table_len as f32 - lower as f32) / (upper as f32 - lower as f32);
@@ -589,18 +598,20 @@ fn default_eval_parametric_fn(p_type: i32, params: &[f64]) -> Vec<ScalarOp> {
             ),
         ],
         // type 6 reversed: ((y - c) ^ (1 / g) - b) / a
-        -6 => if params[1].abs() < MATRIX_DET_TOLERANCE {
-            vec![Const(0.)]
-        } else {
-            vec![
-                Sub(params[3]),
-                IfLtElse(
-                    0.,
-                    vec![Const(0.)],
-                    vec![Pow(1. / params[0]), Sub(params[2]), Div(params[1])],
-                ),
-            ]
-        },
+        -6 => {
+            if params[1].abs() < MATRIX_DET_TOLERANCE {
+                vec![Const(0.)]
+            } else {
+                vec![
+                    Sub(params[3]),
+                    IfLtElse(
+                        0.,
+                        vec![Const(0.)],
+                        vec![Pow(1. / params[0]), Sub(params[2]), Div(params[1])],
+                    ),
+                ]
+            }
+        }
         // y = a log_10(b * x ^ g + c) + d
         7 => vec![
             Pow(params[0]),
@@ -615,21 +626,23 @@ fn default_eval_parametric_fn(p_type: i32, params: &[f64]) -> Vec<ScalarOp> {
         //                                (y - d) / a = log_10(b * x ^ g + c)
         //                       pow(10, (y - d) / a) = b * x ^ g + c
         // pow((pow(10, (y - d) / a) - c) / b, 1 / g) = x
-        -7 => if params[0].abs() < MATRIX_DET_TOLERANCE
-            || params[1].abs() < MATRIX_DET_TOLERANCE
-            || params[2].abs() < MATRIX_DET_TOLERANCE
-        {
-            vec![Const(0.)]
-        } else {
-            vec![
-                Sub(params[4]),
-                Div(params[1]),
-                Exp(10.),
-                Sub(params[3]),
-                Div(params[2]),
-                Pow(1. / params[0]),
-            ]
-        },
+        -7 => {
+            if params[0].abs() < MATRIX_DET_TOLERANCE
+                || params[1].abs() < MATRIX_DET_TOLERANCE
+                || params[2].abs() < MATRIX_DET_TOLERANCE
+            {
+                vec![Const(0.)]
+            } else {
+                vec![
+                    Sub(params[4]),
+                    Div(params[1]),
+                    Exp(10.),
+                    Sub(params[3]),
+                    Div(params[2]),
+                    Pow(1. / params[0]),
+                ]
+            }
+        }
         // y = a * b ^ (cx + d) + e
         8 => vec![
             Mul(params[2]),
@@ -660,18 +673,20 @@ fn default_eval_parametric_fn(p_type: i32, params: &[f64]) -> Vec<ScalarOp> {
             ),
         ],
         // S-Shaped: (1 - (1 - x) ^ (1 / g)) ^ (1 / g)
-        108 => if params[0].abs() < MATRIX_DET_TOLERANCE {
-            vec![Const(0.)]
-        } else {
-            vec![
-                Mul(-1.),
-                Add(1.),
-                Pow(1. / params[0]),
-                Mul(-1.),
-                Add(1.),
-                Pow(1. / params[0]),
-            ]
-        },
+        108 => {
+            if params[0].abs() < MATRIX_DET_TOLERANCE {
+                vec![Const(0.)]
+            } else {
+                vec![
+                    Mul(-1.),
+                    Add(1.),
+                    Pow(1. / params[0]),
+                    Mul(-1.),
+                    Add(1.),
+                    Pow(1. / params[0]),
+                ]
+            }
+        }
         //                   y = (1 - (1 - x) ^ (1 / g)) ^ (1 / g)
         //               y ^ g = (1 - (1 - x) ^ (1 / g))
         //           1 - y ^ g = (1 - x) ^ (1 / g)

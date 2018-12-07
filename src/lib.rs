@@ -3,15 +3,6 @@
 // temporary:
 #![allow(dead_code)]
 
-extern crate cgmath;
-extern crate libc;
-extern crate time;
-#[macro_use]
-extern crate bitflags;
-extern crate byteorder;
-#[macro_use]
-extern crate enum_primitive_derive;
-
 // #[macro_use]
 // mod macros; // TODO: remove
 // mod alpha; // TODO: update or remove
@@ -38,14 +29,15 @@ mod types;
 mod virtuals;
 pub mod white_point;
 
-pub use gamma::ToneCurve;
-pub use mlu::MLU;
-pub use op::ScalarOp;
-pub use profile::Profile;
-pub use profile_io::DeserError;
-pub use transform::Transform;
+pub use crate::gamma::ToneCurve;
+pub use crate::mlu::MLU;
+pub use crate::op::ScalarOp;
+pub use crate::profile::Profile;
+pub use crate::profile_io::DeserError;
+pub use crate::transform::Transform;
 
 use cgmath::num_traits;
+use enum_primitive_derive::Primitive;
 
 #[cfg(test)]
 mod tests;
@@ -173,7 +165,7 @@ pub enum PCS {
 impl ColorSpace {
     /// Returns the number of channels in the color space.
     pub fn channels(self) -> usize {
-        use ColorSpace::*;
+        use crate::ColorSpace::*;
         match self {
             MCH1 | S1Color | Gray => 1,
             MCH2 | S2Color => 2,
