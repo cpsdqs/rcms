@@ -227,7 +227,6 @@ macro_rules! encode_def {
     };
     (f32 => $t:ty: $name:ident, $($i:expr),+) => {
         fn $name(src: &[f32; MAX_CHANNELS], out: &mut [$t]) {
-            println!("{:?}", out);
             $(
                 out[$i] = src[$i] as $t;
             )+
