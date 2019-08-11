@@ -1,8 +1,7 @@
 use crate::gamma::ToneCurve;
 use crate::mlu::{MLU, NO_COUNTRY, NO_LANGUAGE};
-use crate::pixel_format::MAX_CHANNELS;
 use crate::plugin::{s15fixed16_to_double, u8fixed8_to_double};
-use crate::{CIExyY, CIExyYTriple, ICCTag, S15Fixed16, CIEXYZ};
+use crate::{CIExyY, CIExyYTriple, ICCTag, S15Fixed16, CIEXYZ, MAX_CHANNELS};
 use byteorder::{ByteOrder, ReadBytesExt, BE};
 use std::any::Any;
 use std::ffi::CStr;

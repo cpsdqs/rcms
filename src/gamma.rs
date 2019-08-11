@@ -68,13 +68,13 @@ fn parametric_curve_by_type(p_type: i32, index: &mut usize) -> Option<Parametric
 #[derive(Debug, Clone, PartialEq)]
 pub struct CurveSegment {
     /// Domain; defined as domain.0 < x <= domain.1
-    pub domain: (f32, f32),
+    pub domain: (f64, f64),
     /// Parametric type.
     pub p_type: i32,
     /// Parameters if type != 0.
     pub params: [f64; 10],
     /// Array of floats if type == 0.
-    pub sampled_points: Vec<f32>,
+    pub sampled_points: Vec<f64>,
 }
 
 /// A tone curve.
@@ -152,12 +152,12 @@ impl ToneCurve {
     }
 
     /// Uses a segmented curve to store the floating point table.
-    pub fn new_tabulated(values: Vec<f32>) -> Result<ToneCurve, String> {
+    pub fn new_tabulated(values: Vec<f64>) -> Result<ToneCurve, String> {
         // A segmented tone curve should have function segments in the first and last positions
         let last_value = *values.last().unwrap_or(&0.);
         ToneCurve::new_segmented(vec![
             CurveSegment {
-                domain: (-f32::INFINITY, 0.),
+                domain: (-f64::INFINITY, 0.),
                 p_type: 6,
                 params: [
                     1.,
@@ -180,7 +180,7 @@ impl ToneCurve {
                 sampled_points: values,
             },
             CurveSegment {
-                domain: (1., f32::INFINITY),
+                domain: (1., f64::INFINITY),
                 p_type: 6,
                 params: [1., 0., 0., last_value as f64, 0., 0., 0., 0., 0., 0.],
                 sampled_points: Vec::new(),
@@ -210,7 +210,7 @@ impl ToneCurve {
         }
 
         ToneCurve::new_segmented(vec![CurveSegment {
-            domain: (-f32::INFINITY, f32::INFINITY),
+            domain: (-f64::INFINITY, f64::INFINITY),
             p_type,
             params: curve_params,
             sampled_points: Vec::new(),
@@ -267,9 +267,9 @@ impl ToneCurve {
     /// found. If fn type is 0, performs interpolation on the table.
     fn eval_segmented(&self, x: f64) -> f64 {
         match self.segments.binary_search_by(|segment| {
-            if segment.0.domain.0 >= x as f32 {
+            if segment.0.domain.0 >= x {
                 Ordering::Greater
-            } else if segment.0.domain.1 < x as f32 {
+            } else if segment.0.domain.1 < x {
                 Ordering::Less
             } else {
                 Ordering::Equal
@@ -281,14 +281,14 @@ impl ToneCurve {
                 if segment.0.p_type == 0 {
                     // segment is sampled
                     let x =
-                        (x as f32 - segment.0.domain.0) / (segment.0.domain.1 - segment.0.domain.0);
+                        (x - segment.0.domain.0) / (segment.0.domain.1 - segment.0.domain.0);
                     // TODO: interpolation
                     // TEMP implementation
                     let table_len = segment.0.sampled_points.len();
-                    let lower = ((x * table_len as f32).floor() as usize)
+                    let lower = ((x * table_len as f64).floor() as usize)
                         .max(0)
                         .min(table_len - 1);
-                    let upper = ((x * table_len as f32).ceil() as usize)
+                    let upper = ((x * table_len as f64).ceil() as usize)
                         .max(0)
                         .min(table_len - 1);
                     let a = segment.0.sampled_points[lower] as f64;
@@ -338,15 +338,15 @@ impl ToneCurve {
     }
 
     /// Evaluates the tone curve at the given input value using floats.
-    pub fn eval_float(&self, v: f32) -> f32 {
+    pub fn eval_float(&self, v: f64) -> f64 {
         // Check for 16 bits table. If so, this is a limited-precision tone curve
         if self.segments.is_empty() {
             let input = quick_saturate_word((v * 65535.).into()) as u16;
             let out = self.eval_16(input);
 
-            out as f32 / 65535.
+            out as f64 / 65535.
         } else {
-            self.eval_segmented(v.into()) as f32
+            self.eval_segmented(v)
         }
     }
 
@@ -417,7 +417,7 @@ impl ToneCurve {
         let mut table = Vec::with_capacity(samples);
         // TEMP implementation
         for i in 0..samples {
-            table.push(1. - self.eval_float(i as f32 / samples as f32));
+            table.push(1. - self.eval_float(i as f64 / samples as f64));
         }
         Self::new_tabulated(table.into_iter().rev().collect())
     }

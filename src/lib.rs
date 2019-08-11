@@ -3,9 +3,6 @@
 // temporary:
 #![allow(dead_code)]
 
-// #[macro_use]
-// mod macros; // TODO: remove
-// mod alpha; // TODO: update or remove
 mod convert;
 pub mod gamma;
 mod gamut;
@@ -15,16 +12,13 @@ mod mlu;
 mod named;
 mod op;
 // mod optimization;
-// mod pack; // TODO: remove
 pub mod pcs;
 pub mod pipe;
-pub mod pixel_format;
 mod plugin;
 mod profile;
 mod profile_io;
 mod sampling;
 pub mod transform;
-// mod transform_tmp; // TODO: remove
 mod types;
 mod virtuals;
 pub mod white_point;
@@ -38,6 +32,9 @@ pub use crate::transform::Transform;
 
 use cgmath::num_traits;
 use enum_primitive_derive::Primitive;
+
+/// Maximum number of channels per pixel.
+pub const MAX_CHANNELS: usize = 16;
 
 #[cfg(test)]
 mod tests;
@@ -543,6 +540,28 @@ pub struct CIExyYTriple {
     pub red: CIExyY,
     pub green: CIExyY,
     pub blue: CIExyY,
+}
+
+macro_rules! impl_as_slice {
+    ($($i:ident,)+) => {
+        $(
+        impl $i {
+            pub fn as_slice(&self) -> &[f64; 3] {
+                unsafe { &*(self as *const Self as *const [f64; 3]) }
+            }
+            pub fn as_slice_mut(&mut self) -> &mut [f64; 3] {
+                unsafe { &mut *(self as *mut Self as *mut [f64; 3]) }
+            }
+        }
+        )+
+    }
+}
+impl_as_slice! {
+    CIEXYZ,
+    CIExyY,
+    CIELab,
+    CIELCh,
+    JCh,
 }
 
 /// ICC Technology tag.

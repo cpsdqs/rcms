@@ -1,9 +1,8 @@
 // TODO
 
 use crate::pcs::{end_points_by_space, lab_to_xyz, xyz_to_lab};
-use crate::pixel_format::{Lab, PixelFormat};
 use crate::profile::{Profile, USED_AS_INPUT, USED_AS_OUTPUT};
-use crate::transform::{DynTransform, Transform};
+use crate::transform::Transform;
 use crate::virtuals::{create_lab2_profile_opt, create_lab4_profile_opt};
 use crate::white_point::solve_matrix;
 use crate::{CIELab, ColorSpace, Intent, ProfileClass, CIEXYZ};
@@ -19,7 +18,7 @@ const PERCEPTUAL_BLACK: CIEXYZ = CIEXYZ {
 fn create_roundtrip_xform(
     profile: &Profile,
     intent: Intent,
-) -> Result<Transform<Lab<f64>, Lab<f64>>, String> {
+) -> Result<Transform, String> {
     let h_lab = create_lab4_profile_opt(None).unwrap();
     let bpc: [bool; 4] = [false, false, false, false];
     let states: [f64; 4] = [1., 1., 1., 1.];
@@ -31,7 +30,7 @@ fn create_roundtrip_xform(
         Intent::RelativeColorimetric,
     ];
 
-    Transform::new_ex(&profiles, &bpc, &intents, &states)
+    Transform::new_ext(&profiles, &bpc, &intents, &states)
 }
 
 /// Use darker colorants to obtain black point. This works in the relative colorimetric intent and
@@ -46,9 +45,6 @@ fn black_point_as_darker_colorant(
         return Err("Profile does not support intent".into());
     }
 
-    // Create a formatter which has n channels and floating point
-    let profile_format = profile.color_space.pixel_format::<u16>()?;
-
     // Try to get black by using black colorant
     let space = profile.color_space;
 
@@ -59,7 +55,7 @@ fn black_point_as_darker_colorant(
     };
 
     // TODO: check if this isn’t supposed to be total_channels
-    if channels.len() != profile_format.channels {
+    if channels.len() != profile.color_space.channels() {
         return Err("End point channel count doesn’t match profile".into());
     }
 
@@ -70,12 +66,10 @@ fn black_point_as_darker_colorant(
     };
 
     // Create the transform
-    let xform = DynTransform::new(
+    let xform = Transform::new(
         profile,
         &h_lab,
         intent,
-        profile_format,
-        Lab::<f64>::as_dyn(),
     )?;
 
     // Convert black to Lab
@@ -84,13 +78,7 @@ fn black_point_as_darker_colorant(
         a: 0.,
         b: 0.,
     };
-    unsafe {
-        xform.convert(
-            &black as *const _ as *const (),
-            &mut lab as *mut _ as *mut (),
-            1,
-        );
-    }
+    xform.convert(&black, lab.as_slice_mut());
 
     // Force it to be neutral, clip to max. L* of 50
     lab.a = 0.;

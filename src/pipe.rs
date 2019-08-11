@@ -4,11 +4,10 @@ use crate::gamma::ToneCurve;
 use crate::internal::quick_saturate_word;
 use crate::named::NamedColorList;
 use crate::pcs::{lab_to_xyz, xyz_to_lab, MAX_ENCODABLE_XYZ};
-use crate::pixel_format::MAX_CHANNELS;
-use crate::{CIELab, CIEXYZ};
+use crate::{CIELab, CIEXYZ, MAX_CHANNELS};
 use std::fmt;
 
-type StageEvalFn = fn(&[f32], &mut [f32], &Stage);
+type StageEvalFn = fn(&[f64], &mut [f64], &Stage);
 
 /// Multi-process element types.
 ///
@@ -380,7 +379,7 @@ impl fmt::Debug for Stage {
 type PipelineEval16Fn = fn(&[u16], &mut [u16], &Pipeline);
 
 /// Pipeline evaluator (in floating point)
-type PipelineEvalFloatFn = fn(&[f32], &mut [f32], &Pipeline);
+type PipelineEvalFloatFn = fn(&[f64], &mut [f64], &Pipeline);
 
 /// A pipeline.
 #[derive(Clone)]
@@ -450,7 +449,7 @@ impl Pipeline {
     }
 
     /// Evaluates the pipeline with floats.
-    pub fn eval_float(&self, input: &[f32], output: &mut [f32]) {
+    pub fn eval_float(&self, input: &[f64], output: &mut [f64]) {
         (self.eval_float_fn)(input, output, self);
     }
 
@@ -493,20 +492,20 @@ impl fmt::Debug for Pipeline {
 }
 
 /// From floating point to 16 bits
-fn from_float_to_16(input: &[f32], output: &mut [u16], n: usize) {
+fn from_float_to_16(input: &[f64], output: &mut [u16], n: usize) {
     for i in 0..n {
         output[i] = quick_saturate_word((input[i] * 65535.).into());
     }
 }
 
 /// From 16 bits to floating point
-fn from_16_to_float(input: &[u16], output: &mut [f32]) {
+fn from_16_to_float(input: &[u16], output: &mut [f64]) {
     for i in 0..input.len() {
-        output[i] = input[i] as f32 / 65535.;
+        output[i] = input[i] as f64 / 65535.;
     }
 }
 
-fn copy_float_slice(src: &[f32], dest: &mut [f32]) {
+fn copy_float_slice(src: &[f64], dest: &mut [f64]) {
     if src.len() > dest.len() {
         let dest_len = dest.len();
         dest.copy_from_slice(&src[0..dest_len]);
@@ -517,6 +516,14 @@ fn copy_float_slice(src: &[f32], dest: &mut [f32]) {
 
 const MAX_STAGE_CHANNELS: usize = 128;
 
+fn swap_maybe<T>(i: (T, T), swap: bool) -> (T, T) {
+    if swap {
+        (i.1, i.0)
+    } else {
+        (i.0, i.1)
+    }
+}
+
 /// Default function for evaluating the LUT with 16 bits. Precision is retained.
 fn lut_eval_16(input: &[u16], output: &mut [u16], pipeline: &Pipeline) {
     let mut phase = 0;
@@ -525,9 +532,8 @@ fn lut_eval_16(input: &[u16], output: &mut [u16], pipeline: &Pipeline) {
 
     for stage in &pipeline.elements {
         let next_phase = phase ^ 1;
-        let next_phase_yes_this_is_safe =
-            unsafe { &mut *(&storage[next_phase] as *const _ as *mut [f32; MAX_STAGE_CHANNELS]) };
-        (stage.eval_fn)(&storage[phase], next_phase_yes_this_is_safe, &stage);
+        let (p, np) = swap_maybe(storage.split_at_mut(1), next_phase == 0);
+        (stage.eval_fn)(&p[0], &mut np[0], &stage);
         phase = next_phase;
     }
 
@@ -535,7 +541,7 @@ fn lut_eval_16(input: &[u16], output: &mut [u16], pipeline: &Pipeline) {
 }
 
 /// Evaluates the LUt with floats.
-fn lut_eval_float(input: &[f32], output: &mut [f32], pipeline: &Pipeline) {
+fn lut_eval_float(input: &[f64], output: &mut [f64], pipeline: &Pipeline) {
     let mut phase = 0;
     let mut storage = [[0.; MAX_STAGE_CHANNELS], [0.; MAX_STAGE_CHANNELS]];
 
@@ -543,9 +549,8 @@ fn lut_eval_float(input: &[f32], output: &mut [f32], pipeline: &Pipeline) {
 
     for stage in &pipeline.elements {
         let next_phase = phase ^ 1;
-        let next_phase_yes_this_is_safe =
-            unsafe { &mut *(&storage[next_phase] as *const _ as *mut [f32; MAX_STAGE_CHANNELS]) };
-        (stage.eval_fn)(&storage[phase], next_phase_yes_this_is_safe, &stage);
+        let (p, np) = swap_maybe(storage.split_at_mut(1), next_phase == 0);
+        (stage.eval_fn)(&p[0], &mut np[0], &stage);
         phase = next_phase;
     }
 
@@ -553,7 +558,7 @@ fn lut_eval_float(input: &[f32], output: &mut [f32], pipeline: &Pipeline) {
 }
 
 /// Special care should be taken here because precision loss. A temporary cmsFloat64Number buffer is being used
-fn evaluate_matrix(input: &[f32], output: &mut [f32], stage: &Stage) {
+fn evaluate_matrix(input: &[f64], output: &mut [f64], stage: &Stage) {
     let (matrix, offset) = match stage.data {
         StageData::Matrix {
             ref matrix,
@@ -571,12 +576,12 @@ fn evaluate_matrix(input: &[f32], output: &mut [f32], stage: &Stage) {
         if let Some(offset) = offset {
             tmp += offset[i as usize];
         }
-        output[i as usize] = tmp as f32;
+        output[i as usize] = tmp as f64;
     }
     // Output in 0..1.0 domain
 }
 
-fn evaluate_curves(input: &[f32], output: &mut [f32], stage: &Stage) {
+fn evaluate_curves(input: &[f64], output: &mut [f64], stage: &Stage) {
     let curves = match stage.data {
         StageData::Curves(ref c) => c,
         _ => panic!("Invalid stage data (this shouldn’t happen)"),
@@ -587,28 +592,28 @@ fn evaluate_curves(input: &[f32], output: &mut [f32], stage: &Stage) {
     }
 }
 
-fn evaluate_xyz_to_lab(input: &[f32], output: &mut [f32], _: &Stage) {
+fn evaluate_xyz_to_lab(input: &[f64], output: &mut [f64], _: &Stage) {
     // From 0..1.0 to XYZ
     let xyz = CIEXYZ {
-        x: input[0] as f64 * MAX_ENCODABLE_XYZ,
-        y: input[1] as f64 * MAX_ENCODABLE_XYZ,
-        z: input[2] as f64 * MAX_ENCODABLE_XYZ,
+        x: input[0] * MAX_ENCODABLE_XYZ,
+        y: input[1] * MAX_ENCODABLE_XYZ,
+        z: input[2] * MAX_ENCODABLE_XYZ,
     };
 
     let lab = xyz_to_lab(None, xyz);
 
     // From V4 Lab to 0..1.0
-    output[0] = (lab.L / 100.) as f32;
-    output[1] = ((lab.a + 128.) / 255.) as f32;
-    output[2] = ((lab.b + 128.) / 255.) as f32;
+    output[0] = lab.L / 100.;
+    output[1] = (lab.a + 128.) / 255.;
+    output[2] = (lab.b + 128.) / 255.;
 }
 
-fn evaluate_lab_to_xyz(input: &[f32], output: &mut [f32], _: &Stage) {
+fn evaluate_lab_to_xyz(input: &[f64], output: &mut [f64], _: &Stage) {
     // V4 rules
     let lab = CIELab {
-        L: input[0] as f64 * 100.,
-        a: input[1] as f64 * 255. - 128.,
-        b: input[2] as f64 * 255. - 128.,
+        L: input[0] * 100.,
+        a: input[1] * 255. - 128.,
+        b: input[2] * 255. - 128.,
     };
 
     let xyz = lab_to_xyz(None, lab);
@@ -616,18 +621,18 @@ fn evaluate_lab_to_xyz(input: &[f32], output: &mut [f32], _: &Stage) {
     // From XYZ, range 0..19997 to 0..1.0, note that 1.99997 comes from 0xffff
     // encoded as 1.15 fixed point, so 1 + (32767.0 / 32768.0)
 
-    output[0] = (xyz.x / MAX_ENCODABLE_XYZ) as f32;
-    output[1] = (xyz.y / MAX_ENCODABLE_XYZ) as f32;
-    output[2] = (xyz.z / MAX_ENCODABLE_XYZ) as f32;
+    output[0] = xyz.x / MAX_ENCODABLE_XYZ;
+    output[1] = xyz.y / MAX_ENCODABLE_XYZ;
+    output[2] = xyz.z / MAX_ENCODABLE_XYZ;
 }
 
 /// Clips values smaller than zero
-fn clipper(input: &[f32], output: &mut [f32], stage: &Stage) {
+fn clipper(input: &[f64], output: &mut [f64], stage: &Stage) {
     for i in 0..stage.input_channels as usize {
         output[i] = input[i].max(0.);
     }
 }
 
-fn evaluate_identity(input: &[f32], output: &mut [f32], _: &Stage) {
+fn evaluate_identity(input: &[f64], output: &mut [f64], _: &Stage) {
     copy_float_slice(input, output);
 }

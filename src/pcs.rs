@@ -561,19 +561,19 @@ pub(super) fn reasonable_grid_points_by_color_space(color_space: ColorSpace, dw_
     return 33; // 33 for RGB
 }
 
-pub(crate) fn end_points_by_space(space: ColorSpace) -> Option<(Vec<u16>, Vec<u16>)> {
+pub(crate) fn end_points_by_space(space: ColorSpace) -> Option<([f64; 4], [f64; 4])> {
     // only most common spaces
 
-    let rgb_black = vec![0, 0, 0];
-    let rgb_white = vec![0xffff, 0xffff, 0xffff];
-    let cmyk_black = vec![0xffff, 0xffff, 0xffff, 0xffff]; // 400% of ink
-    let cmyk_white = vec![0, 0, 0, 0];
-    let lab_black = vec![0, 0x8080, 0x8080]; // V4 Lab encoding
-    let lab_white = vec![0xFFFF, 0x8080, 0x8080];
-    let cmy_black = vec![0xffff, 0xffff, 0xffff];
-    let cmy_white = vec![0, 0, 0];
-    let gray_black = vec![0];
-    let gray_white = vec![0xffff];
+    let rgb_black = [0., 0., 0., 0.];
+    let rgb_white = [1., 1., 1., 0.];
+    let cmyk_black = [1., 1., 1., 1.]; // 400% of ink
+    let cmyk_white = [0., 0., 0., 0.];
+    let lab_black = [0., 0.5, 0.5, 0.]; // V4 Lab encoding
+    let lab_white = [1., 0.5, 0.5, 0.];
+    let cmy_black = [1., 1., 1., 0.];
+    let cmy_white = [0., 0., 0., 0.];
+    let gray_black = [0.; 4];
+    let gray_white = [1., 0., 0., 0.];
 
     match space {
         ColorSpace::Gray => Some((gray_white, gray_black)),

@@ -1,6 +1,5 @@
 use super::*;
 use crate::gamma::ToneCurve;
-use crate::pixel_format::RGB;
 use crate::profile::Profile;
 use crate::transform::Transform;
 
@@ -63,14 +62,12 @@ fn aces_cg_srgb_round_trip() {
 
     let srgb = Profile::new_srgb();
 
-    let aces_to_srgb: Transform<RGB<f32>, RGB<f32>> =
-        Transform::new(&aces_cg, &srgb, Intent::Perceptual).unwrap();
-    let srgb_to_aces: Transform<RGB<f32>, RGB<f32>> =
-        Transform::new(&srgb, &aces_cg, Intent::Perceptual).unwrap();
+    let aces_to_srgb = Transform::new(&aces_cg, &srgb, Intent::Perceptual).unwrap();
+    let srgb_to_aces = Transform::new(&srgb, &aces_cg, Intent::Perceptual).unwrap();
 
-    let aces_px: [f32; 3] = [0.5, 0.1, 0.7];
-    let mut srgb_px: [f32; 3] = [-1.; 3];
-    let mut aces_px_2: [f32; 3] = [-1.; 3];
+    let aces_px = [0.5, 0.1, 0.7];
+    let mut srgb_px = [-1.; 3];
+    let mut aces_px_2 = [-1.; 3];
 
     aces_to_srgb.convert(&aces_px, &mut srgb_px);
     srgb_to_aces.convert(&srgb_px, &mut aces_px_2);

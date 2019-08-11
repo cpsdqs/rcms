@@ -34,9 +34,9 @@ impl Stage {
 }
 
 // TODO
-fn eval_named_color(_: &[f32], _: &mut [f32], _: &Stage) {
+fn eval_named_color(_: &[f64], _: &mut [f64], _: &Stage) {
     unimplemented!()
 }
-fn eval_named_color_pcs(_: &[f32], _: &mut [f32], _: &Stage) {
+fn eval_named_color_pcs(_: &[f64], _: &mut [f64], _: &Stage) {
     unimplemented!()
 }
