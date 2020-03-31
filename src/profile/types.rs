@@ -2,6 +2,8 @@ use std::fmt;
 
 enum_primitive! {
     /// Rendering intents.
+    ///
+    /// When in doubt, use perceptual. Refer to the ICC specification for details.
     pub Intent (u32) {
         Perceptual = 0,
         RelativeColorimetric = 1,

@@ -122,7 +122,7 @@ impl StageKernel {
         match self {
             Self::Identity(n) => *n,
             Self::CurveSet(c) => c.len(),
-            Self::Matrix { rows, matrix, .. } => matrix.len() / rows,
+            Self::Matrix { rows, .. } => *rows,
             Self::CLut { channels, .. } => channels.0,
             Self::Xyz2Lab | Self::Lab2Xyz => 3,
             Self::ClipNegatives(n) => *n,
@@ -134,7 +134,7 @@ impl StageKernel {
         match self {
             Self::Identity(n) => *n,
             Self::CurveSet(c) => c.len(),
-            Self::Matrix { rows, .. } => *rows,
+            Self::Matrix { rows, matrix, .. } => matrix.len() / rows,
             Self::CLut { channels, .. } => channels.1,
             Self::Xyz2Lab | Self::Lab2Xyz => 3,
             Self::ClipNegatives(n) => *n,
@@ -463,6 +463,21 @@ impl Pipeline {
     }
 
     /// Returns the number of input channels.
+    ///
+    /// # Examples
+    /// ```
+    /// # use rcms::pipeline::*;
+    /// let mut pipeline = Pipeline::new();
+    ///
+    /// // this is a 3 by 3 matrix and hence has 3 input and 3 output channels
+    /// pipeline.append_stage(PipelineStage::new_matrix(
+    ///     3,
+    ///     vec![1., 0., 0., 0., 1., 0., 0., 0., 1.],
+    ///     None,
+    /// ));
+    ///
+    /// assert_eq!(pipeline.input_channels(), 3);
+    /// ```
     pub fn input_channels(&self) -> usize {
         self.input_channels
     }
@@ -479,6 +494,26 @@ impl Pipeline {
     }
 
     /// Returns the inner pipeline stages.
+    ///
+    /// # Examples
+    /// ```
+    /// # use rcms::ToneCurve;
+    /// # use rcms::pipeline::*;
+    /// let stage_a = PipelineStage::new_curve_set(vec![
+    ///     ToneCurve::new_gamma(1.0),
+    ///     ToneCurve::new_gamma(1.0),
+    ///     ToneCurve::new_gamma(1.0),
+    /// ]);
+    /// let stage_b = PipelineStage::new_identity(3);
+    ///
+    /// let mut pipeline = Pipeline::new();
+    /// pipeline.append_stage(stage_a.clone());
+    /// pipeline.append_stage(stage_b.clone());
+    ///
+    /// let stages = pipeline.stages();
+    /// assert_eq!(stages[0], stage_a);
+    /// assert_eq!(stages[1], stage_b);
+    /// ```
     pub fn stages(&self) -> &[PipelineStage] {
         &self.stages
     }
@@ -505,6 +540,35 @@ impl Pipeline {
     ///
     /// The new stage must have the same number of input channels as the last stage has input
     /// channels.
+    ///
+    /// # Examples
+    /// ```
+    /// # use rcms::pipeline::*;
+    /// let mut pipeline = Pipeline::new();
+    ///
+    /// // this stage has 1 input and 3 outputs.
+    /// // an empty pipeline accepts any number of channels
+    /// pipeline.append_stage(PipelineStage::new_matrix(
+    ///     1,
+    ///     vec![1., 2., 3.],
+    ///     None,
+    /// )).unwrap();
+    ///
+    /// // the pipeline now has 3 outputs
+    /// assert_eq!(pipeline.output_channels(), 3);
+    ///
+    /// // this stage has 3 inputs and 1 output.
+    /// // the 3 inputs are compatible with the 3 outputs of the pipeline as it is currently, so
+    /// // this action will succeed.
+    /// pipeline.append_stage(PipelineStage::new_matrix(
+    ///     3,
+    ///     vec![1., 2., 3.],
+    ///     None,
+    /// )).unwrap();
+    ///
+    /// // this stage as 2 inputs and 2 outputs and cannot be added to this pipeline
+    /// pipeline.append_stage(PipelineStage::new_identity(2)).unwrap_err();
+    /// ```
     pub fn append_stage(&mut self, stage: PipelineStage) -> Result<(), PipelineError> {
         let prev_output = self.output_channels();
         let stage_input = stage.input_channels();
