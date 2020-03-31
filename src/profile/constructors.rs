@@ -1,11 +1,11 @@
 use crate::color::build_rgb_to_xyz_transfer_matrix;
 use crate::color::{CxyY, Cxyz, D50, D65};
 use crate::fixed::s15f16;
-use std::convert::TryFrom;
 use crate::pipeline::{Pipeline, PipelineStage};
 use crate::profile::mlu::Mlu;
 use crate::profile::{ColorSpace, IccProfile, IccTag, IccValue, ProfileClass};
 use crate::tone_curve::ToneCurve;
+use std::convert::TryFrom;
 
 impl IccProfile {
     fn set_description(&mut self, description: &str) {

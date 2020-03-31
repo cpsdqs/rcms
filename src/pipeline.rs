@@ -87,7 +87,7 @@ pub enum StageKernel {
     CurveSet(Vec<ToneCurve>),
     /// Applies a matrix and an optional offset.
     ///
-    /// The number of rows is the number of inputs, and the number of columns the number of outputs.
+    /// The number of columns is the number of inputs, and the number of rows the number of outputs.
     Matrix {
         rows: usize,
         matrix: Vec<f64>,
@@ -122,7 +122,7 @@ impl StageKernel {
         match self {
             Self::Identity(n) => *n,
             Self::CurveSet(c) => c.len(),
-            Self::Matrix { rows, .. } => *rows,
+            Self::Matrix { rows, matrix, .. } => matrix.len() / rows,
             Self::CLut { channels, .. } => channels.0,
             Self::Xyz2Lab | Self::Lab2Xyz => 3,
             Self::ClipNegatives(n) => *n,
@@ -134,7 +134,7 @@ impl StageKernel {
         match self {
             Self::Identity(n) => *n,
             Self::CurveSet(c) => c.len(),
-            Self::Matrix { rows, matrix, .. } => matrix.len() / rows,
+            Self::Matrix { rows, .. } => *rows,
             Self::CLut { channels, .. } => channels.1,
             Self::Xyz2Lab | Self::Lab2Xyz => 3,
             Self::ClipNegatives(n) => *n,
@@ -159,16 +159,17 @@ impl StageKernel {
                 matrix,
                 offset,
             } => {
-                let out_channels = matrix.len() / rows;
+                let in_channels = matrix.len() / *rows;
+                let out_channels = *rows;
                 for i in 0..out_channels {
-                    let mut tmp = 0.;
-                    for j in 0..*rows {
-                        tmp += input[j] as f64 * matrix[(i * rows + j)];
+                    let mut value = 0.;
+                    for j in 0..in_channels {
+                        value += input[j] * matrix[rows * j + i];
                     }
                     if let Some(offset) = offset {
-                        tmp += offset[i];
+                        value += offset[i];
                     }
-                    output[i] = tmp;
+                    output[i] = value;
                 }
             }
             Self::CLut {
@@ -269,6 +270,133 @@ impl StageKernel {
             }
         }
     }
+
+    pub fn can_merge_with(&self, other: &StageKernel) -> bool {
+        match (self, other) {
+            (StageKernel::Matrix { .. }, StageKernel::Matrix { .. }) => true,
+            (StageKernel::Xyz2Lab, StageKernel::Lab2Xyz) => true,
+            (StageKernel::Lab2Xyz, StageKernel::Xyz2Lab) => true,
+            (StageKernel::CurveSet(_), StageKernel::CurveSet(_)) => true,
+            _ => false,
+        }
+    }
+
+    /// Returning Err will always guarantee that nothing was mutated.
+    pub fn merge_with(&mut self, other: &StageKernel) -> Result<(), ()> {
+        match (self, other) {
+            (
+                StageKernel::Matrix {
+                    rows: rows_a,
+                    matrix: matrix_a,
+                    offset: offset_a,
+                },
+                StageKernel::Matrix {
+                    rows: rows_b,
+                    matrix: matrix_b,
+                    offset: offset_b,
+                },
+            ) => {
+                // result_a = matrix_a * in_color + offset_a
+                // result_b = matrix_b * result_a + offset_b
+                // result_b = matrix_b * (matrix_a * in_color + offset_a) + offset_b
+                // result_b = (matrix_b * matrix_a) * in_color + (matrix_b * offset_a + offset_b)
+
+                let out_cols = matrix_a.len() / *rows_a;
+                let out_rows = *rows_b;
+                let mut out_matrix = Vec::with_capacity(out_cols * out_rows);
+
+                // multiply mat_b * mat_a to get out_matrix
+                for i in 0..out_cols {
+                    for j in 0..out_rows {
+                        let mut value = 0.;
+
+                        for k in 0..*rows_a {
+                            value += matrix_b[*rows_b * k + j] * matrix_a[*rows_a * i + k];
+                        }
+
+                        out_matrix.push(value);
+                    }
+                }
+
+                // calculate mat_b * off_a + off_b to get out_offset
+                let mut out_offset = Vec::with_capacity(out_rows);
+
+                for i in 0..out_rows {
+                    let mut off_value = offset_b.as_ref().map(|off| off[i]).unwrap_or(0.);
+                    for j in 0..*rows_a {
+                        off_value += matrix_b[*rows_b * j + i]
+                            * offset_a.as_ref().map(|off| off[j]).unwrap_or(0.);
+                    }
+                    out_offset.push(off_value);
+                }
+
+                // set out_offset to None if it’s just zeroes
+                let out_offset = if out_offset.iter().find(|x| **x != 0.).is_some() {
+                    Some(out_offset)
+                } else {
+                    None
+                };
+
+                *rows_a = out_rows;
+                *matrix_a = out_matrix;
+                *offset_a = out_offset;
+                Ok(())
+            }
+            a @ (StageKernel::Xyz2Lab, StageKernel::Lab2Xyz)
+            | a @ (StageKernel::Lab2Xyz, StageKernel::Xyz2Lab) => {
+                // these cancel each other out
+                *a.0 = StageKernel::Identity(3);
+                Ok(())
+            }
+            (StageKernel::CurveSet(curves_a), StageKernel::CurveSet(curves_b)) => {
+                for (i, curve) in curves_a.iter_mut().enumerate() {
+                    *curve = curves_b[i].compose_with_approx(curve);
+                }
+
+                Ok(())
+            }
+            _ => Err(()),
+        }
+    }
+
+    pub fn is_identity(&self) -> bool {
+        match self {
+            StageKernel::Identity(_) => true,
+            StageKernel::Matrix {
+                rows,
+                matrix,
+                offset,
+            } => {
+                let cols = matrix.len() / rows;
+                if *rows == cols {
+                    for i in 0..cols {
+                        for j in 0..*rows {
+                            let ident_value = if i == j { 1. } else { 0. };
+
+                            if matrix[i * rows + j] != ident_value {
+                                return false;
+                            }
+                        }
+                    }
+                }
+                if let Some(offset) = offset {
+                    if offset.iter().find(|x| **x != 0.).is_some() {
+                        return false;
+                    }
+                }
+                true
+            }
+            StageKernel::CurveSet(curves) => {
+                for curve in curves {
+                    if !curve.is_identity() {
+                        return false;
+                    }
+                }
+                true
+            }
+            _ => false,
+        }
+    }
 }
 
 /// A pipeline stage.
@@ -315,13 +443,13 @@ impl PipelineStage {
     /// The matrix should be column-major, like in the following 3×3 example:
     ///
     /// ```text
-    /// ⎡in[0]⎤   ⎡0 3 6⎤   ⎡out[0]⎤
-    /// ⎢in[1]⎥ * ⎢1 4 7⎥ = ⎢out[1]⎥
-    /// ⎣in[2]⎦   ⎣2 5 8⎦   ⎣out[2]⎦
+    ///  ⎡0 3 6⎤   ⎡in[0]⎤   ⎡out[0]⎤
+    ///  ⎢1 4 7⎥ * ⎢in[1]⎥ = ⎢out[1]⎥
+    ///  ⎣2 5 8⎦   ⎣in[2]⎦   ⎣out[2]⎦
     /// ```
     ///
-    /// The number of columns corresponds to the number of output channels, and the number of
-    /// rows to the number of input channels.
+    /// The number of columns corresponds to the number of input channels, and the number of
+    /// rows to the number of output channels.
     pub fn new_matrix(rows: usize, matrix: Vec<f64>, offset: Option<Vec<f64>>) -> Self {
         PipelineStage {
             ty: StageType::Matrix,
@@ -440,6 +568,22 @@ impl PipelineStage {
     pub fn transform(&self, input: &[f64], output: &mut [f64]) {
         self.kernel.transform(input, output)
     }
+
+    /// Returns true if this stage can be merged with the other stage.
+    pub fn can_merge_with(&self, other: &PipelineStage) -> bool {
+        self.kernel.can_merge_with(&other.kernel)
+    }
+
+    /// Merges this stage with another.
+    pub fn merge_with(&mut self, other: &PipelineStage) -> Result<(), ()> {
+        self.kernel.merge_with(&other.kernel)?;
+        Ok(())
+    }
+
+    /// Returns true if this stage essentially has no effect.
+    pub fn is_identity(&self) -> bool {
+        self.kernel.is_identity()
+    }
 }
 
 /// A color transform pipeline.
@@ -549,7 +693,7 @@ impl Pipeline {
     /// // this stage has 1 input and 3 outputs.
     /// // an empty pipeline accepts any number of channels
     /// pipeline.append_stage(PipelineStage::new_matrix(
-    ///     1,
+    ///     3,
     ///     vec![1., 2., 3.],
     ///     None,
     /// )).unwrap();
@@ -561,7 +705,7 @@ impl Pipeline {
     /// // the 3 inputs are compatible with the 3 outputs of the pipeline as it is currently, so
     /// // this action will succeed.
     /// pipeline.append_stage(PipelineStage::new_matrix(
-    ///     3,
+    ///     1,
     ///     vec![1., 2., 3.],
     ///     None,
     /// )).unwrap();
@@ -581,6 +725,20 @@ impl Pipeline {
         self.update_channels();
 
         Ok(())
+    }
+
+    /// Removes the first stage and returns it.
+    pub fn pop_front_stage(&mut self) -> Option<PipelineStage> {
+        let stage = self.stages.remove(0);
+        self.update_channels();
+        Some(stage)
+    }
+
+    /// Removes the last stage and returns it.
+    pub fn pop_back_stage(&mut self) -> Option<PipelineStage> {
+        let stage = self.stages.pop();
+        self.update_channels();
+        stage
     }
 
     /// Appends another pipeline to this one.
@@ -614,7 +772,7 @@ impl Pipeline {
         let mut storage = [[0.; MAX_STAGE_CHANNELS], [0.; MAX_STAGE_CHANNELS]];
 
         for i in 0..self.input_channels() {
-            storage[0][i] = input[i];
+            storage[phase][i] = input[i];
         }
 
         for stage in &self.stages {
@@ -629,6 +787,81 @@ impl Pipeline {
 
         for i in 0..self.output_channels() {
             output[i] = storage[phase][i];
+        }
+    }
+
+    /// Attemps to (destructively) optimize this pipeline by merging and eliminating unnecessary
+    /// stages.
+    ///
+    /// Note that performing this action may resample tone curves. This will reduce the domain in
+    /// which they are defined to a potentially smaller one.
+    ///
+    /// # Examples
+    /// ```
+    /// # use rcms::{*, link::*, profile::*};
+    /// let srgb = IccProfile::new_srgb();
+    /// let aces_cg = IccProfile::new_aces_cg();
+    ///
+    /// let color = [0.1, 0.2, 0.3];
+    ///
+    /// let mut unoptimized_pipeline = link(
+    ///     &[&srgb, &aces_cg],
+    ///     &[Intent::Perceptual, Intent::Perceptual],
+    ///     &[false, false],
+    ///     &[0., 0.],
+    /// ).expect("failed to link profiles");
+    ///
+    /// let mut optimized_pipeline = unoptimized_pipeline.clone();
+    /// optimized_pipeline.optimize();
+    ///
+    /// let mut out_color = [0.; 3];
+    /// let mut out_color2 = [0.; 3];
+    ///
+    /// unoptimized_pipeline.transform(&color, &mut out_color);
+    /// optimized_pipeline.transform(&color, &mut out_color2);
+    ///
+    /// assert!((out_color[0] - out_color2[0]).abs() < 1e-5);
+    /// assert!((out_color[1] - out_color2[1]).abs() < 1e-5);
+    /// assert!((out_color[2] - out_color2[2]).abs() < 1e-5);
+    /// ```
+    pub fn optimize(&mut self) {
+        if self.stages.len() < 2 {
+            return;
+        }
+
+        let mut i = 0;
+        while i < self.stages.len() {
+            let (stages_left, stages_right) = self.stages.split_at_mut(i + 1);
+            let stage = &mut stages_left[i];
+            let next_stage = &stages_right.get(0);
+
+            let mut did_merge_next = false;
+
+            if let Some(next_stage) = next_stage {
+                if stage.can_merge_with(next_stage) {
+                    if let Ok(()) = stage.merge_with(next_stage) {
+                        did_merge_next = true;
+                    }
+                }
+            }
+
+            let is_redundant = stage.is_identity();
+
+            if did_merge_next {
+                self.stages.remove(i + 1);
+            }
+            if is_redundant {
+                self.stages.remove(i);
+            }
+
+            // OpenColorIO notes how stages like these will often be symmetric like A B B A, so
+            // in the case where B B are merged and removed, the resulting A A might also be
+            // optimizable
+            if is_redundant {
+                i = i.saturating_sub(1);
+            } else {
+                i += 1;
+            }
         }
     }
 }

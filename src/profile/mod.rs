@@ -1,7 +1,7 @@
 //! Color profiles.
 
-use crate::fixed::{s15f16, u16f16};
 use crate::color::{CxyY, Cxyz, D50};
+use crate::fixed::{s15f16, u16f16};
 use crate::pipeline::{Pipeline, PipelineStage};
 use crate::tone_curve::ToneCurve;
 use cgmath::prelude::*;
@@ -549,7 +549,7 @@ impl IccProfile {
 
         match (r, g, b) {
             (Some(IccValue::Cxyz(r)), Some(IccValue::Cxyz(g)), Some(IccValue::Cxyz(b))) => {
-                Some(Matrix3::from_cols((*r).into(), (*g).into(), (*b).into()).transpose())
+                Some(Matrix3::from_cols((*r).into(), (*g).into(), (*b).into()))
             }
             _ => None,
         }

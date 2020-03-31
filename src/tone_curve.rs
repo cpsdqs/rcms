@@ -332,6 +332,33 @@ impl IccParametricCurve {
             _ => todo!(),
         }
     }
+
+    /// Composes two parametric curves, if possible.
+    pub fn compose_with(&self, other: &IccParametricCurve) -> Option<IccParametricCurve> {
+        use IccParametricCurve::*;
+        match (*self, *other) {
+            (Gamma(a), Gamma(b)) => Some(Gamma(a * b)),
+            (Gamma(a), GammaInv(b)) if b != 0. => Some(Gamma(a / b)),
+            (GammaInv(a), Gamma(b)) if a != 0. => Some(Gamma(b / a)),
+            (GammaInv(a), GammaInv(b)) => Some(GammaInv(a * b)),
+            _ => todo!(),
+        }
+    }
+
+    pub fn is_identity(&self) -> bool {
+        use IccParametricCurve::*;
+        match *self {
+            Gamma(g) | GammaInv(g) => g == 1.,
+            LinGamma(g, a, b) | LinGammaInv(g, a, b) => g == 1. && a == 1. && b == 0.,
+            LinBGamma(g, a, b, c) | LinBGammaInv(g, a, b, c) => {
+                g == 1. && a == 1. && b == 0. && c == 0.
+            }
+            LinLinGamma(g, a, b, c, _) | LinLinGammaInv(g, a, b, c, _) => {
+                g == 1. && a == 1. && b == 0. && c == 1.
+            }
+            _ => todo!(),
+        }
+    }
 }
 
 /// Tone curve segment types.
@@ -378,7 +405,7 @@ impl CurveSegment {
                 if !p.is_finite() {
                     p = 0.;
                 }
-                Some(a + ((b - a) * p))
+                Some((a + ((b - a) * p)) / 65535.)
             }
             CurveType::Sampled(ref samples) => {
                 let x = (x - self.domain.start) / (self.domain.end - self.domain.start);
@@ -398,6 +425,35 @@ impl CurveSegment {
                 }
 
                 Some(lower_sample + (upper_sample - lower_sample) * p)
+            }
+        }
+    }
+
+    /// Returns true if this segment is the identity function in its domain.
+    pub fn is_identity(&self) -> bool {
+        match self.curve {
+            CurveType::Const(_) => false,
+            CurveType::IccParam(curve) => curve.is_identity(),
+            CurveType::Table(ref table) => {
+                for (i, y) in table.iter().enumerate() {
+                    let x = i as f64 / table.len() as f64;
+                    let expected_y = (self.domain.end - self.domain.start) * x + self.domain.start;
+                    let expected_y = (expected_y * 65535.) as u16;
+                    if *y != expected_y {
+                        return false;
+                    }
+                }
+                true
+            }
+            CurveType::Sampled(ref samples) => {
+                for (i, y) in samples.iter().enumerate() {
+                    let x = i as f64 / samples.len() as f64;
+                    let expected_y = (self.domain.end - self.domain.start) * x + self.domain.start;
+                    if (y - expected_y).abs() > 1e-3 {
+                        return false;
+                    }
+                }
+                true
             }
         }
     }
@@ -557,5 +613,86 @@ impl ToneCurve {
         }
 
         ToneCurve::new_tabulated(table)
+    }
+
+    /// Composes this tone curve with another and returns an approximation.
+    pub fn compose_with_approx(&self, other: &ToneCurve) -> ToneCurve {
+        if self.segments.len() == 1 && other.segments.len() == 1 {
+            // try analytical composition
+            let own_segment = &self.segments[0];
+            let other_segment = &other.segments[0];
+
+            let domain_start = own_segment.domain.start.max(other_segment.domain.start);
+            let domain_end = own_segment.domain.end.min(other_segment.domain.end);
+
+            match (&own_segment.curve, &other_segment.curve) {
+                (CurveType::IccParam(own_curve), CurveType::IccParam(other_curve)) => {
+                    if let Some(composed) = own_curve.compose_with(other_curve) {
+                        return ToneCurve::new(vec![CurveSegment {
+                            domain: domain_start..domain_end,
+                            curve: CurveType::IccParam(composed),
+                        }]);
+                    }
+                }
+                (CurveType::Const(a), _) => {
+                    return ToneCurve::new(vec![CurveSegment {
+                        domain: domain_start..domain_end,
+                        curve: CurveType::Const(*a),
+                    }]);
+                }
+                _ => (),
+            }
+        }
+
+        let mut segments = Vec::with_capacity(3);
+
+        // sample -1..2 with -1..0 and 1..2 at lower resolution
+        let sample_rate_oob = 1024;
+        let mut samples = Vec::new();
+        for i in 0..sample_rate_oob {
+            let x = i as f64 / sample_rate_oob as f64 - 1.;
+            samples.push(
+                self.eval(other.eval(x).unwrap_or(f64::NAN))
+                    .unwrap_or(f64::NAN),
+            );
+        }
+        segments.push(CurveSegment {
+            domain: -1.0..0.0,
+            curve: CurveType::Sampled(samples),
+        });
+
+        let sample_rate = 4096; // TODO: dynamic sample rate
+        let mut samples = Vec::new();
+        for i in 0..sample_rate {
+            let x = i as f64 / sample_rate as f64;
+            samples.push(
+                self.eval(other.eval(x).unwrap_or(f64::NAN))
+                    .unwrap_or(f64::NAN),
+            );
+        }
+        segments.push(CurveSegment {
+            domain: 0.0..1.0,
+            curve: CurveType::Sampled(samples),
+        });
+
+        let mut samples = Vec::new();
+        for i in 0..sample_rate_oob {
+            let x = i as f64 / sample_rate_oob as f64 + 1.;
+            samples.push(
+                self.eval(other.eval(x).unwrap_or(f64::NAN))
+                    .unwrap_or(f64::NAN),
+            );
+        }
+        segments.push(CurveSegment {
+            domain: 1.0..2.0,
+            curve: CurveType::Sampled(samples),
+        });
+
+        ToneCurve::new(segments)
+    }
+
+    /// Returns true if this is an identity curve where defined.
+    pub fn is_identity(&self) -> bool {
+        self.segments.iter().find(|x| !x.is_identity()).is_none()
     }
 }

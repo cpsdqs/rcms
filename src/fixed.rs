@@ -75,7 +75,9 @@ impl TryFrom<f64> for s15f16 {
         };
         let frac_part = value.fract();
 
-        Ok(s15f16(sign * (((whole & 0x7FFF) << 16) | (((frac_part * 65536.) as i32) & 0xFFFF))))
+        Ok(s15f16(
+            sign * (((whole & 0x7FFF) << 16) | (((frac_part * 65536.) as i32) & 0xFFFF)),
+        ))
     }
 }
 
