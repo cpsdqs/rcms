@@ -2,7 +2,7 @@ use super::{
     ColorSpace, DebugFmtTag, IccDataType, IccProfile, IccTag, IccTagData, IccValue, ProfileClass,
 };
 use crate::color::{CxyY, Cxyz};
-use crate::fixed::{s15f16, u16f16};
+use crate::fixed::{s15f16, u16f16, ReprError};
 use crate::profile::mlu::Mlu;
 use crate::tone_curve::ToneCurve;
 use byteorder::{ByteOrder, ReadBytesExt, WriteBytesExt, BE};
@@ -134,6 +134,8 @@ pub enum SerError {
     TooMuchIndirection(u32),
     /// An IO error.
     Io(io::Error),
+    /// Failed to encode a float as a fixed-point number.
+    F64Repr(f64),
 }
 
 impl fmt::Display for SerError {
@@ -149,6 +151,7 @@ impl fmt::Display for SerError {
                 write!(f, "too much indirection in tag {:?}", DebugFmtTag(*tag))
             }
             SerError::Io(err) => write!(f, "{}", err),
+            SerError::F64Repr(x) => write!(f, "could not encode {} as a fixed-point value", x),
         }
     }
 }
@@ -159,6 +162,12 @@ impl From<io::Error> for SerError {
     }
 }
 
+impl From<ReprError<f64>> for SerError {
+    fn from(err: ReprError<f64>) -> SerError {
+        SerError::F64Repr(err.0)
+    }
+}
+
 /// Enforces that the profile version is per spec.
 /// Operates on the big endian bytes from the profile.
 /// Called before converting to platform endianness.
@@ -166,11 +175,7 @@ impl From<io::Error> for SerError {
 /// Byte 1 is 2 BCD digits, one per nibble.
 /// Reserved bytes 2 & 3 must be 0.
 fn validated_version(version: u32) -> u32 {
-    union VersionUnion {
-        bytes: [u8; 4],
-        version: u32,
-    }
-    let mut bytes = unsafe { VersionUnion { version }.bytes };
+    let mut bytes = version.to_be_bytes();
     if bytes[0] > 0x09 {
         bytes[0] = 0x09;
     }
@@ -185,7 +190,7 @@ fn validated_version(version: u32) -> u32 {
     bytes[1] = tmp1 | tmp2;
     bytes[2] = 0;
     bytes[3] = 0;
-    unsafe { VersionUnion { bytes }.version }
+    u32::from_be_bytes(bytes)
 }
 
 #[derive(Debug)]
@@ -247,7 +252,7 @@ impl IccProfile {
         self.model = model;
         self.attributes = attributes;
         self.rendering_intent = intent.try_into().map_err(DeserError::UnknownIntent)?;
-        self.version = u32::from_be(validated_version(u32::to_be(profile_version)));
+        self.version = validated_version(profile_version);
         self.creator = creator;
         self.preferred_cmm = preferred_cmm;
         self.platform = platform;
@@ -413,9 +418,9 @@ impl IccProfile {
         buf.write_u32::<BE>(self.model)?;
         buf.write_u64::<BE>(self.attributes)?;
         buf.write_u32::<BE>(self.rendering_intent.into())?;
-        buf.write_i32::<BE>(s15f16::from_f64(0.964).0)?;
-        buf.write_i32::<BE>(s15f16::from_f64(1.).0)?;
-        buf.write_i32::<BE>(s15f16::from_f64(0.8249).0)?;
+        buf.write_i32::<BE>(s15f16::try_from(0.964)?.to_bytes())?;
+        buf.write_i32::<BE>(s15f16::try_from(1.)?.to_bytes())?;
+        buf.write_i32::<BE>(s15f16::try_from(0.8249)?.to_bytes())?;
         buf.write_u32::<BE>(self.creator)?;
         buf.write_u128::<BE>(self.id)?;
 
@@ -609,10 +614,10 @@ fn tag_data_types(for_tag: IccTag) -> Option<&'static [IccDataType]> {
     None
 }
 
-type SerResult = io::Result<()>;
+type SerResult = Result<(), SerError>;
 
 impl IccValue {
-    fn serialize<T: io::Write>(&self, output: &mut T) -> io::Result<()> {
+    fn serialize<T: io::Write>(&self, output: &mut T) -> SerResult {
         match self {
             IccValue::Cxyz(xyz) => xyz_ser(*xyz, output),
             IccValue::Chromaticity(r, g, b) => chromaticity_ser((*r, *g, *b), output),
@@ -676,16 +681,16 @@ fn tag_deserializer(for_type: IccDataType) -> Option<TypeDeserFn> {
 fn xyz_ser<T: io::Write>(xyz: Cxyz, mut buf: T) -> SerResult {
     buf.write_u32::<BE>(IccDataType::Xyz.into())?;
     buf.write_u32::<BE>(0)?;
-    buf.write_i32::<BE>(s15f16::from_f64(xyz.x).0)?;
-    buf.write_i32::<BE>(s15f16::from_f64(xyz.y).0)?;
-    buf.write_i32::<BE>(s15f16::from_f64(xyz.z).0)?;
+    buf.write_i32::<BE>(s15f16::try_from(xyz.x)?.to_bytes())?;
+    buf.write_i32::<BE>(s15f16::try_from(xyz.y)?.to_bytes())?;
+    buf.write_i32::<BE>(s15f16::try_from(xyz.z)?.to_bytes())?;
     Ok(())
 }
 fn xyz_deser(buf: &[u8]) -> DeserResult {
     let mut buf = io::Cursor::new(buf);
-    let x = s15f16(buf.read_i32::<BE>()?).to_f64();
-    let y = s15f16(buf.read_i32::<BE>()?).to_f64();
-    let z = s15f16(buf.read_i32::<BE>()?).to_f64();
+    let x = s15f16::from_bytes(buf.read_i32::<BE>()?).into();
+    let y = s15f16::from_bytes(buf.read_i32::<BE>()?).into();
+    let z = s15f16::from_bytes(buf.read_i32::<BE>()?).into();
     Ok(IccValue::Cxyz(Cxyz { x, y, z }))
 }
 fn chromaticity_ser<T: io::Write>(colorants: (CxyY, CxyY, CxyY), mut buf: T) -> SerResult {
@@ -694,12 +699,12 @@ fn chromaticity_ser<T: io::Write>(colorants: (CxyY, CxyY, CxyY), mut buf: T) -> 
     let channels = 3;
     buf.write_u16::<BE>(channels)?;
     buf.write_u16::<BE>(0)?; // phosphor or colorant type unknown
-    buf.write_u32::<BE>(u16f16::from_f64((colorants.0).x).0)?;
-    buf.write_u32::<BE>(u16f16::from_f64((colorants.0).y).0)?;
-    buf.write_u32::<BE>(u16f16::from_f64((colorants.1).x).0)?;
-    buf.write_u32::<BE>(u16f16::from_f64((colorants.1).y).0)?;
-    buf.write_u32::<BE>(u16f16::from_f64((colorants.2).x).0)?;
-    buf.write_u32::<BE>(u16f16::from_f64((colorants.2).y).0)?;
+    buf.write_u32::<BE>(u16f16::try_from((colorants.0).x)?.to_bytes())?;
+    buf.write_u32::<BE>(u16f16::try_from((colorants.0).y)?.to_bytes())?;
+    buf.write_u32::<BE>(u16f16::try_from((colorants.1).x)?.to_bytes())?;
+    buf.write_u32::<BE>(u16f16::try_from((colorants.1).y)?.to_bytes())?;
+    buf.write_u32::<BE>(u16f16::try_from((colorants.2).x)?.to_bytes())?;
+    buf.write_u32::<BE>(u16f16::try_from((colorants.2).y)?.to_bytes())?;
     Ok(())
 }
 fn chromaticity_deser(buf: &[u8]) -> DeserResult {
@@ -718,12 +723,12 @@ fn chromaticity_deser(buf: &[u8]) -> DeserResult {
     }
 
     let _table = buf.read_u16::<BE>()?;
-    let red_x = u16f16(buf.read_u32::<BE>()?).to_f64();
-    let red_y = u16f16(buf.read_u32::<BE>()?).to_f64();
-    let green_x = u16f16(buf.read_u32::<BE>()?).to_f64();
-    let green_y = u16f16(buf.read_u32::<BE>()?).to_f64();
-    let blue_x = u16f16(buf.read_u32::<BE>()?).to_f64();
-    let blue_y = u16f16(buf.read_u32::<BE>()?).to_f64();
+    let red_x = u16f16::from_bytes(buf.read_u32::<BE>()?).into();
+    let red_y = u16f16::from_bytes(buf.read_u32::<BE>()?).into();
+    let green_x = u16f16::from_bytes(buf.read_u32::<BE>()?).into();
+    let green_y = u16f16::from_bytes(buf.read_u32::<BE>()?).into();
+    let blue_x = u16f16::from_bytes(buf.read_u32::<BE>()?).into();
+    let blue_y = u16f16::from_bytes(buf.read_u32::<BE>()?).into();
 
     Ok(IccValue::Chromaticity(
         CxyY {
@@ -788,10 +793,10 @@ fn curve_ser<T: io::Write>(curve: &ToneCurve, mut buf: T) -> SerResult {
                 buf.write_u32::<BE>(0)?;
                 buf.write_u16::<BE>(2)?;
                 buf.write_u16::<BE>(0)?;
-                buf.write_i32::<BE>(s15f16::from_f64(0.).0)?;
-                buf.write_i32::<BE>(s15f16::from_f64(0.).0)?;
-                buf.write_i32::<BE>(s15f16::from_f64(0.).0)?;
-                buf.write_i32::<BE>(s15f16::from_f64(*a).0)?;
+                buf.write_i32::<BE>(s15f16::try_from(0.)?.to_bytes())?;
+                buf.write_i32::<BE>(s15f16::try_from(0.)?.to_bytes())?;
+                buf.write_i32::<BE>(s15f16::try_from(0.)?.to_bytes())?;
+                buf.write_i32::<BE>(s15f16::try_from(*a)?.to_bytes())?;
                 return Ok(());
             }
             CurveType::Table(table) => {
@@ -809,7 +814,7 @@ fn curve_ser<T: io::Write>(curve: &ToneCurve, mut buf: T) -> SerResult {
                 buf.write_u16::<BE>(curve.icc_type())?;
                 buf.write_u16::<BE>(0)?;
                 for param in curve.params() {
-                    buf.write_i32::<BE>(s15f16::from_f64(param).0)?;
+                    buf.write_i32::<BE>(s15f16::try_from(param)?.to_bytes())?;
                 }
                 return Ok(());
             }
@@ -874,11 +879,11 @@ fn curve_deser(buf: &[u8]) -> DeserResult {
     }
 }
 
-fn s15fixed16_array_ser<T: io::Write>(array: &[f64], mut buf: T) -> SerResult {
+fn s15fixed16_array_ser<T: io::Write>(array: &[s15f16], mut buf: T) -> SerResult {
     buf.write_u32::<BE>(IccDataType::S15Fixed16Array.into())?;
     buf.write_u32::<BE>(0)?;
     for i in array {
-        buf.write_i32::<BE>(s15f16::from_f64(*i).0)?;
+        buf.write_i32::<BE>(i.to_bytes())?;
     }
     Ok(())
 }
@@ -890,17 +895,17 @@ fn s15fixed16_array_deser(buf: &[u8]) -> DeserResult {
     let mut values = Vec::with_capacity(count);
 
     for _ in 0..count {
-        values.push(s15f16(buf.read_i32::<BE>()?).to_f64());
+        values.push(s15f16::from_bytes(buf.read_i32::<BE>()?));
     }
 
     Ok(IccValue::S15Fixed16Array(values))
 }
 
-fn u16fixed16_array_ser<T: io::Write>(array: &[f64], mut buf: T) -> SerResult {
+fn u16fixed16_array_ser<T: io::Write>(array: &[u16f16], mut buf: T) -> SerResult {
     buf.write_u32::<BE>(IccDataType::U16Fixed16Array.into())?;
     buf.write_u32::<BE>(0)?;
     for i in array {
-        buf.write_u32::<BE>(u16f16::from_f64(*i).0)?;
+        buf.write_u32::<BE>(i.to_bytes())?;
     }
     Ok(())
 }
@@ -912,7 +917,7 @@ fn u16fixed16_array_deser(buf: &[u8]) -> DeserResult {
     let mut values = Vec::with_capacity(count);
 
     for _ in 0..count {
-        values.push(u16f16(buf.read_u32::<BE>()?).to_f64());
+        values.push(u16f16::from_bytes(buf.read_u32::<BE>()?));
     }
 
     Ok(IccValue::U16Fixed16Array(values))
@@ -1002,7 +1007,7 @@ fn parametric_curve_deser(buf: &[u8]) -> DeserResult {
 
     let mut params = Vec::new();
     for _ in 0..PARAM_COUNT_BY_TYPE[p_type as usize] {
-        params.push(s15f16(buf.read_i32::<BE>()?).to_f64());
+        params.push(s15f16::from_bytes(buf.read_i32::<BE>()?).into());
     }
 
     match ToneCurve::new_icc_parametric(p_type, &params) {

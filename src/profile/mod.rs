@@ -1,5 +1,6 @@
 //! Color profiles.
 
+use crate::fixed::{s15f16, u16f16};
 use crate::color::{CxyY, Cxyz, D50};
 use crate::pipeline::{Pipeline, PipelineStage};
 use crate::tone_curve::ToneCurve;
@@ -116,9 +117,9 @@ pub enum IccValue {
     /// colorantOrderType
     ColorantOrder(Vec<u8>),
     /// s15Fixed16ArrayType
-    S15Fixed16Array(Vec<f64>),
+    S15Fixed16Array(Vec<s15f16>),
     /// u16Fixed16ArrayType
-    U16Fixed16Array(Vec<f64>),
+    U16Fixed16Array(Vec<u16f16>),
     /// signatureType
     Signature(u32),
     /// textType
@@ -299,9 +300,9 @@ impl IccProfile {
         match self.get_tag(IccTag::ChromaticAdaptation) {
             Some(IccValue::S15Fixed16Array(values)) if values.len() == 9 => {
                 return Matrix3::from([
-                    [values[0], values[3], values[6]],
-                    [values[1], values[4], values[7]],
-                    [values[2], values[5], values[8]],
+                    [values[0].into(), values[3].into(), values[6].into()],
+                    [values[1].into(), values[4].into(), values[7].into()],
+                    [values[2].into(), values[5].into(), values[8].into()],
                 ])
             }
             _ => (),

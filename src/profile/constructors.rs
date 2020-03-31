@@ -1,5 +1,7 @@
 use crate::color::build_rgb_to_xyz_transfer_matrix;
 use crate::color::{CxyY, Cxyz, D50, D65};
+use crate::fixed::s15f16;
+use std::convert::TryFrom;
 use crate::pipeline::{Pipeline, PipelineStage};
 use crate::profile::mlu::Mlu;
 use crate::profile::{ColorSpace, IccProfile, IccTag, IccValue, ProfileClass};
@@ -27,10 +29,13 @@ impl IccProfile {
         let chad = Cxyz::from(white_point).adaptation_matrix(D50, None)?;
 
         let mut chad_vec = Vec::with_capacity(9);
-        chad_vec.resize(9, 0.);
+        chad_vec.resize(9, s15f16::ZERO);
         for i in 0..3 {
             for j in 0..3 {
-                chad_vec[i * 3 + j] = chad[i][j];
+                chad_vec[i * 3 + j] = match s15f16::try_from(chad[i][j]) {
+                    Ok(n) => n,
+                    Err(_) => return None,
+                };
             }
         }
 

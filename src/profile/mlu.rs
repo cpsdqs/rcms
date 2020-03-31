@@ -44,7 +44,7 @@ impl Mlu {
         self.get_raw(str_to_16(lang), str_to_16(country))
     }
 
-    /// Returns an entry.
+    /// Returns a raw entry.
     pub fn get_raw(&self, lang: u16, country: u16) -> Option<&str> {
         self.entries.get(&(lang, country)).map(|x| &**x)
     }
@@ -54,7 +54,7 @@ impl Mlu {
         self.remove_raw(str_to_16(lang), str_to_16(country))
     }
 
-    /// Removes an entry.
+    /// Removes a raw entry.
     pub fn remove_raw(&mut self, lang: u16, country: u16) -> Option<String> {
         self.entries.remove(&(lang, country))
     }
