@@ -3,6 +3,12 @@ name = "rcms"
 version = "0.1.0"
 authors = ["cpsdqs <cpsdqs@gmail.com>"]
 edition = "2018"
+description = "ICC color management library"
+license = "MIT"
+readme = "README.md"
+repository = "https://github.com/cpsdqs/rcms"
+keywords = ["color", "icc"]
+categories = ["graphics"]
 
 [dependencies]
 byteorder = "1.3"

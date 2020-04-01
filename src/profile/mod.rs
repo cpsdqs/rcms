@@ -684,6 +684,7 @@ impl IccProfile {
     }
 }
 
+#[allow(dead_code)]
 pub(crate) enum IntentDirection {
     Input,
     Output,
