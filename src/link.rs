@@ -7,6 +7,7 @@ use crate::profile::{ColorSpace, IccProfile, Intent, ProfileClass};
 use crate::util::{lcms_mat3_eval, lcms_mat3_per};
 use cgmath::prelude::*;
 use cgmath::{Matrix3, Vector3};
+use std::error::Error;
 use std::fmt;
 
 /// Linking errors.
@@ -50,6 +51,15 @@ impl fmt::Display for LinkError {
             }
             LinkError::NoInputLut(i) => write!(f, "missing input LUT for profile at index {}", i),
             LinkError::NoOutputLut(i) => write!(f, "missing output LUT for profile at index {}", i),
+        }
+    }
+}
+
+impl Error for LinkError {
+    fn source(&self) -> Option<&(dyn Error + 'static)> {
+        match self {
+            LinkError::Pipeline(err) => Some(err),
+            _ => None,
         }
     }
 }

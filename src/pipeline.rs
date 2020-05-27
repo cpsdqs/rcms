@@ -3,6 +3,7 @@
 use crate::color::{CLab, Cxyz, D50};
 use crate::tone_curve::ToneCurve;
 use cgmath::{Matrix3, Vector3};
+use std::error::Error;
 use std::{f64, fmt};
 
 /// Maximum amount of color channels the pipeline evaluator can handle.
@@ -885,3 +886,5 @@ impl fmt::Display for PipelineError {
         }
     }
 }
+
+impl Error for PipelineError {}

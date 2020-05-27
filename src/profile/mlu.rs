@@ -5,7 +5,7 @@ use std::fmt;
 
 fn str_to_16(s: &str) -> u16 {
     let mut bytes = s.bytes();
-    (((bytes.next().unwrap() as u16) << 8) | bytes.next().unwrap() as u16)
+    ((bytes.next().unwrap() as u16) << 8) | bytes.next().unwrap() as u16
 }
 
 fn str_from_16(n: u16) -> String {

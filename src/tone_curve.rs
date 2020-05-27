@@ -6,7 +6,7 @@ use std::ops::Range;
 
 const EPSILON: f64 = 0.0001;
 
-/// Ann ICC parametric curve.
+/// An ICC parametric curve.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum IccParametricCurve {
     /// `y = x ^ g` (type 0)

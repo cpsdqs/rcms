@@ -8,6 +8,7 @@ use crate::tone_curve::ToneCurve;
 use byteorder::{ByteOrder, ReadBytesExt, WriteBytesExt, BE};
 use std::collections::HashMap;
 use std::convert::{TryFrom, TryInto};
+use std::error::Error;
 use std::io::{Read, Seek, Write};
 use std::{fmt, io, mem};
 
@@ -74,6 +75,15 @@ impl fmt::Display for DeserError {
     }
 }
 
+impl Error for DeserError {
+    fn source(&self) -> Option<&(dyn Error + 'static)> {
+        match self {
+            DeserError::Io(err) => Some(err),
+            _ => None,
+        }
+    }
+}
+
 /// A tag data deserialization error.
 #[derive(Debug)]
 #[non_exhaustive]
@@ -108,6 +118,15 @@ impl fmt::Display for DataDeserError {
             DataDeserError::InvalidMluRecordSize(x) => write!(f, "invalid MLU record size {}", x),
             DataDeserError::InvalidMlu => write!(f, "invalid MLU"),
             DataDeserError::Io(err) => write!(f, "{}", err),
+        }
+    }
+}
+
+impl Error for DataDeserError {
+    fn source(&self) -> Option<&(dyn Error + 'static)> {
+        match self {
+            DataDeserError::Io(err) => Some(err),
+            _ => None,
         }
     }
 }
@@ -152,6 +171,15 @@ impl fmt::Display for SerError {
             }
             SerError::Io(err) => write!(f, "{}", err),
             SerError::F64Repr(x) => write!(f, "could not encode {} as a fixed-point value", x),
+        }
+    }
+}
+
+impl Error for SerError {
+    fn source(&self) -> Option<&(dyn Error + 'static)> {
+        match self {
+            SerError::Io(err) => Some(err),
+            _ => None,
         }
     }
 }
