@@ -1,10 +1,22 @@
 //! Fixed-point types.
 
 use std::convert::TryFrom;
+use std::error::Error;
 use std::fmt;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct ReprError<T>(pub T);
+
+impl<T> fmt::Display for ReprError<T>
+where
+    T: fmt::Display,
+{
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "could not represent {} in the desired data type", self.0)
+    }
+}
+
+impl<T> Error for ReprError<T> where T: fmt::Debug + fmt::Display {}
 
 /// Signed 15.16 fixed-point number.
 #[allow(non_camel_case_types)]
