@@ -13,7 +13,7 @@ pub enum IccParametricCurve {
     Gamma(f64),
     GammaInv(f64),
 
-    /// (ax + b) ^ g` (type 1)
+    /// `(ax + b) ^ g` (type 1)
     ///
     /// Parameters are g, a, b.
     LinGamma(f64, f64, f64),
@@ -21,11 +21,22 @@ pub enum IccParametricCurve {
 
     /// (type 2)
     ///
+    /// ```text
+    /// y = (ax + b) ^ g + c | x <= -b / a
+    /// y = c                | else
+    /// ```
+    ///
     /// Parameters are g, a, b, c.
     LinBGamma(f64, f64, f64, f64),
     LinBGammaInv(f64, f64, f64, f64),
 
     /// (type 3)
+    ///
+    /// ```text
+    /// y = (ax + b) ^ g | x >= d
+    /// y = cx           | else
+    /// ```
+    ///
     ///
     /// Parameters are g, a, b, c, d.
     LinLinGamma(f64, f64, f64, f64, f64),
@@ -33,29 +44,34 @@ pub enum IccParametricCurve {
 
     /// (type 4)
     ///
+    /// ```text
+    /// y = (ax + b) ^ g + e | x >= d
+    /// y = cx + f           | else
+    /// ```
+    ///
     /// Parameters are g, a, b, c, d, e, f.
     LinLinOffGamma(f64, f64, f64, f64, f64, f64, f64),
     LinLinOffGammaInv(f64, f64, f64, f64, f64, f64, f64),
 
-    /// (type 5)
+    /// `y = (ax + b) ^ g + c` (type 5)
     ///
     /// Parameters are g, a, b, c.
     LinOffGamma(f64, f64, f64, f64),
     LinOffGammaInv(f64, f64, f64, f64),
 
-    /// (type 6)
+    /// `y = a log_10(b * x ^ g + c) + d` (type 6)
     ///
     /// Parameters are g, a, b, c, d.
     LogGamma(f64, f64, f64, f64, f64),
     LogGammaInv(f64, f64, f64, f64, f64),
 
-    /// (type 7)
+    /// `y = a * b ^ (cx + d) + e` (type 7)
     ///
     /// Parameters are g, a, b, c, d, e.
     LinPow(f64, f64, f64, f64, f64, f64),
     LinPowInv(f64, f64, f64, f64, f64, f64),
 
-    /// (type 107)
+    /// `y = (1 - (1 - x) ^ (1 / g)) ^ (1 / g)` (type 107)
     Sigmoid(f64),
     SigmoidInv(f64),
 }
@@ -128,7 +144,7 @@ impl IccParametricCurve {
         }
     }
 
-    /// Returns the inverted version of this curve.
+    /// Returns whether this curve is the inverted version.
     pub fn is_inverted(&self) -> bool {
         use IccParametricCurve::*;
         match *self {
@@ -145,6 +161,7 @@ impl IccParametricCurve {
         }
     }
 
+    /// Returns an iterator over all parameters, in order (g, a, b, c, ...).
     pub fn params(&self) -> impl Iterator<Item = f64> {
         enum Iter {
             S1(usize, [f64; 1]),
@@ -226,33 +243,35 @@ impl IccParametricCurve {
     }
 
     /// Evaluates the parametric curve at the given position.
-    pub fn eval(&self, x: f64) -> f64 {
+    ///
+    /// Will return None if the curve is undefined at that point.
+    pub fn eval(&self, x: f64) -> Option<f64> {
         match self {
             // y = x ^ g
             IccParametricCurve::Gamma(g) => {
                 if x < 0. {
                     if (g - 1.).abs() < EPSILON {
-                        x
+                        Some(x)
                     } else {
-                        0.
+                        None
                     }
                 } else {
-                    x.powf(*g)
+                    Some(x.powf(*g))
                 }
             }
             // x = y ^ (1 / g)
             IccParametricCurve::GammaInv(g) => {
                 if x < 0. {
                     if (g - 1.).abs() < EPSILON {
-                        x
+                        Some(x)
                     } else {
-                        0.
+                        None
                     }
                 } else {
                     if g.abs() < EPSILON {
-                        f64::INFINITY
+                        None
                     } else {
-                        x.powf(1. / g)
+                        Some(x.powf(1. / g))
                     }
                 }
             }
@@ -261,21 +280,21 @@ impl IccParametricCurve {
             // y = 0            | else
             IccParametricCurve::LinGamma(g, a, b) => {
                 if a.abs() < EPSILON {
-                    0.
+                    None
                 } else if x < -b / a {
-                    0.
+                    Some(0.)
                 } else {
-                    (a * x + b).powf(*g)
+                    Some((a * x + b).powf(*g))
                 }
             }
             // x = (y ^ (1 / g) - b) / a
             IccParametricCurve::LinGammaInv(g, a, b) => {
                 if g.abs() < EPSILON || a.abs() < EPSILON {
-                    0.
+                    None
                 } else if x < 0. {
-                    0.
+                    Some(0.)
                 } else {
-                    ((x.powf(1. / g) - b) / a).max(0.)
+                    Some(((x.powf(1. / g) - b) / a).max(0.))
                 }
             }
             // IEC 61966-3
@@ -283,29 +302,27 @@ impl IccParametricCurve {
             // y = c                | else
             IccParametricCurve::LinBGamma(g, a, b, c) => {
                 if a.abs() < EPSILON {
-                    0.
+                    None
                 } else if x < (-b / a).max(0.) {
-                    *c
+                    Some(*c)
                 } else {
                     let x = a * x + b;
                     if x < 0. {
-                        0.
+                        Some(*c)
                     } else {
-                        x.powf(*g) + c
+                        Some(x.powf(*g) + c)
                     }
                 }
             }
             // x = ((y - c) ^ (1 / g) - b) / a | y >= c
             // x = -b / a                      | else
             IccParametricCurve::LinBGammaInv(g, a, b, c) => {
-                if a.abs() < EPSILON {
-                    0.
+                if g.abs() < EPSILON || a.abs() < EPSILON {
+                    None
                 } else if x < *c {
-                    -b / a
-                } else if x - c < 0. {
-                    0.
+                    Some(-b / a)
                 } else {
-                    ((x - c).powf(1. / g) - b) / a
+                    Some(((x - c).powf(1. / g) - b) / a)
                 }
             }
             // IEC 61966-2.1 (sRGB)
@@ -313,38 +330,122 @@ impl IccParametricCurve {
             // y = cx           | else
             IccParametricCurve::LinLinGamma(g, a, b, c, d) => {
                 if x < *d {
-                    c * x
+                    Some(c * x)
                 } else {
-                    (a * x + b).powf(*g)
+                    Some((a * x + b).powf(*g))
                 }
             }
             // x = (y ^ (1 / g) - b) / a | y >= (ad + b) ^ g
             // x = y / c                 | else
             IccParametricCurve::LinLinGammaInv(g, a, b, c, d) => {
                 if a.abs() < EPSILON || b.abs() < EPSILON || d.abs() < EPSILON {
-                    0.
+                    None
                 } else if x < (a * d + b).max(0.).powf(*g) {
-                    x / c
+                    Some(x / c)
                 } else {
-                    (x.powf(1. / g) - b) / a
+                    Some((x.powf(1. / g) - b) / a)
                 }
             }
-            _ => todo!(),
+            // y = (ax + b) ^ g + e | x >= d
+            // y = cx + f           | else
+            IccParametricCurve::LinLinOffGamma(g, a, b, c, d, e, f) => {
+                if x >= *d {
+                    Some((a * x + b).max(0.).powf(*g) + e)
+                } else {
+                    Some(c * x + f)
+                }
+            },
+            // x = ((y - e) ^ (1 / g) - b) / a | y >= (ad + b) ^ g + e, cd + f
+            // x = (y - f) / c                 | else
+            IccParametricCurve::LinLinOffGammaInv(g, a, b, c, d, e, f) => {
+                if g.abs() < EPSILON || a.abs() < EPSILON || c.abs() < EPSILON {
+                    None
+                } else if x < c * d + e {
+                    Some((x - f) / c)
+                } else {
+                    Some(((x - e).powf(1. / g) - b) / a)
+                }
+            },
+
+            // y = (ax + b) ^ g + c
+            IccParametricCurve::LinOffGamma(g, a, b, c) => {
+                Some((a * x + b).max(0.).powf(*g) + c)
+            }
+            // x = ((y - c) ^ (1 / g) - b) / a
+            IccParametricCurve::LinOffGammaInv(g, a, b, c) => {
+                if g.abs() < EPSILON || a.abs() < EPSILON {
+                    None
+                } else {
+                    Some(((x - c).powf(1. / g) - b) / a)
+                }
+            }
+
+            // y = a log_10(b * x ^ g + c) + d
+            IccParametricCurve::LogGamma(g, a, b, c, d) => {
+                Some(a * ((b * x).powf(*g) + c).log10() + d)
+            }
+            //                                (y - d) / a = log_10(b * x ^ g + c)
+            //                       pow(10, (y - d) / a) = b * x ^ g + c
+            // pow((pow(10, (y - d) / a) - c) / b, 1 / g) = x
+            IccParametricCurve::LogGammaInv(g, a, b, c, d) => {
+                if g.abs() < EPSILON || a.abs() < EPSILON || b.abs() < EPSILON {
+                    None
+                } else {
+                    Some(((10_f64.powf((x - d) / a) - c) / b).powf(1. / g))
+                }
+            }
+
+            // y = a * b ^ (cx + d) + e
+            IccParametricCurve::LinPow(g, a, b, c, d, e) => {
+                Some((a * b).powf(c * x + d) + e)
+            }
+            // x = (log_b((y - e) / a) - d) / c
+            IccParametricCurve::LinPowInv(g, a, b, c, d, e) => {
+                if a.abs() < EPSILON || (b - 1.).abs() < EPSILON || c.abs() < EPSILON {
+                    None
+                } else {
+                    Some((((x - e) / a - d).log(*b) - d) / c)
+                }
+            }
+
+            // y = (1 - (1 - x) ^ (1 / g)) ^ (1 / g)
+            IccParametricCurve::Sigmoid(g) => {
+                if g.abs() < EPSILON {
+                    None
+                } else {
+                    Some((1. - (1. - x).powf(1. / g)).powf(1. / g))
+                }
+            }
+            //                   y = (1 - (1 - x) ^ (1 / g)) ^ (1 / g)
+            //               y ^ g = (1 - (1 - x) ^ (1 / g))
+            //           1 - y ^ g = (1 - x) ^ (1 / g)
+            //     (1 - y ^ g) ^ g = 1 - x
+            // 1 - (1 - y ^ g) ^ g = x
+            IccParametricCurve::SigmoidInv(g) => {
+                Some(1. - (1. - x.powf(*g)).powf(*g))
+            }
         }
     }
 
     /// Composes two parametric curves, if possible.
     pub fn compose_with(&self, other: &IccParametricCurve) -> Option<IccParametricCurve> {
         use IccParametricCurve::*;
+        if self.is_identity() {
+            return Some(*other);
+        } else if other.is_identity() {
+            return Some(*self);
+        }
         match (*self, *other) {
             (Gamma(a), Gamma(b)) => Some(Gamma(a * b)),
             (Gamma(a), GammaInv(b)) if b != 0. => Some(Gamma(a / b)),
             (GammaInv(a), Gamma(b)) if a != 0. => Some(Gamma(b / a)),
             (GammaInv(a), GammaInv(b)) => Some(GammaInv(a * b)),
-            _ => todo!(),
+            // I don't think you can really compose any of the other functions in the general case
+            _ => None,
         }
     }
 
+    /// Returns true if this curve is actually the identity.
     pub fn is_identity(&self) -> bool {
         use IccParametricCurve::*;
         match *self {
@@ -356,7 +457,15 @@ impl IccParametricCurve {
             LinLinGamma(g, a, b, c, _) | LinLinGammaInv(g, a, b, c, _) => {
                 g == 1. && a == 1. && b == 0. && c == 1.
             }
-            _ => todo!(),
+            LinLinOffGamma(g, a, b, c, _, e, f) | LinLinOffGammaInv(g, a, b, c, _, e, f) => {
+                g == 1. && a == 1. && b == 0. && c == 1. && e == 0. && f == 0.
+            }
+            LinOffGamma(g, a, b, c) | LinOffGammaInv(g, a, b, c) => {
+                g == 1. && a == 1. && b == 0. && c == 0.
+            }
+            LogGamma(..) | LogGammaInv(..) => false,
+            LinPow(..) | LinPowInv(..) => false,
+            Sigmoid(..) | SigmoidInv(..) => false,
         }
     }
 }
@@ -390,7 +499,7 @@ impl CurveSegment {
     pub fn eval(&self, x: f64) -> Option<f64> {
         match self.curve {
             CurveType::Const(a) => Some(a),
-            CurveType::IccParam(curve) => Some(curve.eval(x)),
+            CurveType::IccParam(curve) => curve.eval(x),
             CurveType::Table(ref table) => {
                 let table_len = table.len();
                 let lower = ((x * table_len as f64).floor() as usize)
