@@ -395,12 +395,13 @@ impl IccParametricCurve {
                 }
             }
 
+            // FIXME: does this curve really not use the gamma parameter?
             // y = a * b ^ (cx + d) + e
-            IccParametricCurve::LinPow(g, a, b, c, d, e) => {
+            IccParametricCurve::LinPow(_, a, b, c, d, e) => {
                 Some((a * b).powf(c * x + d) + e)
             }
             // x = (log_b((y - e) / a) - d) / c
-            IccParametricCurve::LinPowInv(g, a, b, c, d, e) => {
+            IccParametricCurve::LinPowInv(_, a, b, c, d, e) => {
                 if a.abs() < EPSILON || (b - 1.).abs() < EPSILON || c.abs() < EPSILON {
                     None
                 } else {

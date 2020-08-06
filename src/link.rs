@@ -215,8 +215,8 @@ fn compute_conversion(
             Vector3::zero(),
         ))
     } else if bpc {
-        let bp_in = detect_black_point(&profiles[i - 1], intent, 0);
-        let bp_out = detect_dest_black_point(&profiles[i], intent, 0);
+        let bp_in = detect_black_point(&profiles[i - 1], intent);
+        let bp_out = detect_dest_black_point(&profiles[i], intent);
 
         // If black points are equal, then do nothing
         if bp_in != bp_out {

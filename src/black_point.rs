@@ -21,7 +21,7 @@ const ZERO: Cxyz = Cxyz {
 /// This function does just that. There is a special flag for using the black point tag
 /// (Rust note: there is not), but it’s turned off by default because it’s bogus on most profiles.
 /// The detection algorithm involves turning the black point neutral and only using the L component.
-pub(crate) fn detect_black_point(profile: &IccProfile, intent: Intent, dw_flags: u32) -> Cxyz {
+pub(crate) fn detect_black_point(profile: &IccProfile, intent: Intent) -> Cxyz {
     let dev_class = profile.device_class;
 
     // Make sure the device class is adequate
@@ -46,7 +46,7 @@ pub(crate) fn detect_black_point(profile: &IccProfile, intent: Intent, dw_flags:
     {
         // Matrix shaper share MRC & perceptual intents
         if profile.is_matrix_shaper() {
-            return black_point_as_darker_colorant(profile, Intent::RelativeColorimetric, 0);
+            return black_point_as_darker_colorant(profile, Intent::RelativeColorimetric);
         }
 
         // Get perceptual black out of v4 profiles. That is fixed for perceptual & saturation intents
@@ -64,7 +64,7 @@ pub(crate) fn detect_black_point(profile: &IccProfile, intent: Intent, dw_flags:
     }
 
     // Nope, compute BP using current intent.
-    return black_point_as_darker_colorant(profile, intent, dw_flags);
+    return black_point_as_darker_colorant(profile, intent);
 }
 
 fn end_points_by_space(space: ColorSpace) -> Option<([f64; 4], [f64; 4])> {
@@ -93,7 +93,7 @@ fn end_points_by_space(space: ColorSpace) -> Option<([f64; 4], [f64; 4])> {
 
 /// Use darker colorants to obtain black point. This works in the relative colorimetric intent and
 /// assumes more ink results in darker colors. No ink limit is assumed.
-fn black_point_as_darker_colorant(profile: &IccProfile, intent: Intent, _flags: u32) -> Cxyz {
+fn black_point_as_darker_colorant(profile: &IccProfile, intent: Intent) -> Cxyz {
     // If the profile does not support the input direction, assume black point 0
     if !profile.is_intent_supported(intent, IntentDirection::Input) {
         return ZERO;
@@ -198,7 +198,7 @@ fn black_point_using_perceptual_black(profile: &IccProfile) -> Cxyz {
 
 /// Calculates the black point of a destination profile.
 /// This algorithm comes from the Adobe paper disclosing its black point compensation method.
-pub(crate) fn detect_dest_black_point(profile: &IccProfile, intent: Intent, dw_flags: u32) -> Cxyz {
+pub(crate) fn detect_dest_black_point(profile: &IccProfile, intent: Intent) -> Cxyz {
     let dev_class = profile.device_class;
 
     // Make sure the device class is adequate
@@ -224,7 +224,7 @@ pub(crate) fn detect_dest_black_point(profile: &IccProfile, intent: Intent, dw_f
     {
         if profile.is_matrix_shaper() {
             // Matrix shapers share MRC & perceptual intents
-            return black_point_as_darker_colorant(profile, Intent::RelativeColorimetric, 0);
+            return black_point_as_darker_colorant(profile, Intent::RelativeColorimetric);
         }
 
         // Get perceptual black out of v4 profiles. This is fixed for perceptual & saturation intents
@@ -239,7 +239,7 @@ pub(crate) fn detect_dest_black_point(profile: &IccProfile, intent: Intent, dw_f
             && color_space != ColorSpace::CMYK)
     {
         // In this case, handle as input case
-        return detect_black_point(profile, intent, dw_flags);
+        return detect_black_point(profile, intent);
     }
 
     // It is one of the valid cases!, use Adobe algorithm
@@ -247,7 +247,7 @@ pub(crate) fn detect_dest_black_point(profile: &IccProfile, intent: Intent, dw_f
     // Set a first guess, that should work on good profiles.
     let initial_lab = if intent == Intent::RelativeColorimetric {
         // calculate initial Lab as source black point
-        let ini_xyz = detect_black_point(profile, intent, dw_flags);
+        let ini_xyz = detect_black_point(profile, intent);
 
         // convert the XYZ to lab
         ini_xyz.into_lab(D50)
